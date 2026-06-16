@@ -1,6 +1,6 @@
 const SUPABASE_URL = "https://kgrpynemusujedajtsas.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtncnB5bmVtdXN1amVkYWp0c2FzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MDIyOTcsImV4cCI6MjA5NzE3ODI5N30.Pobruun9mqxyl5hD51v6_eeyzts0NQYkFjraNsGP0HU";
-const API_URL = "http://localhost:8000"; // altere para a URL de produção quando deployar
+const API_URL = "https://caju-id-ponto-production.up.railway.app";
 
 // ---------- Auth ----------
 
