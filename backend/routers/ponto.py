@@ -1,9 +1,13 @@
 import os
+import logging
+import traceback
 from calendar import monthrange
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+
+logger = logging.getLogger(__name__)
 
 from auth.deps import get_colaborador_atual
 from db.supabase_client import supabase
@@ -26,7 +30,7 @@ def _limites_dia_utc(dia) -> tuple[str, str]:
     return inicio.isoformat(), fim.isoformat()
 
 
-@router.post("/registrar", response_model=PontoRegistrarResponse)
+@router.post("/registrar")
 async def registrar_ponto(
     request: Request,
     tipo: str = Form(...),
@@ -35,6 +39,16 @@ async def registrar_ponto(
     foto: UploadFile = File(...),
     colaborador: dict = Depends(get_colaborador_atual),
 ):
+    try:
+        return await _registrar_ponto_impl(request, tipo, lat, lng, foto, colaborador)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Erro inesperado em /ponto/registrar:\n%s", traceback.format_exc())
+        raise HTTPException(500, f"Erro interno: {type(e).__name__}: {e}")
+
+
+async def _registrar_ponto_impl(request, tipo, lat, lng, foto, colaborador):
     if tipo not in TIPOS_VALIDOS:
         raise HTTPException(400, f"Tipo inválido. Use: {sorted(TIPOS_VALIDOS)}")
 
