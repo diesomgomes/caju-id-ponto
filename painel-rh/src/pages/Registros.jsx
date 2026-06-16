@@ -30,11 +30,11 @@ function ModalFoto({ registro, onClose }) {
           ? <img src={url} alt="selfie" className="w-full rounded-lg" />
           : <p className="text-gray-400 text-sm">Carregando foto…</p>
         }
-        {registro.latitude && (
+        {registro.lat_registro && (
           <div className="h-48 rounded-lg overflow-hidden">
-            <MapContainer center={[registro.latitude, registro.longitude]} zoom={16} style={{ height: '100%' }} scrollWheelZoom={false}>
+            <MapContainer center={[registro.lat_registro, registro.lng_registro]} zoom={16} style={{ height: '100%' }} scrollWheelZoom={false}>
               <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-              <Marker position={[registro.latitude, registro.longitude]}>
+              <Marker position={[registro.lat_registro, registro.lng_registro]}>
                 <Popup>{registro.colaborador_nome}</Popup>
               </Marker>
             </MapContainer>

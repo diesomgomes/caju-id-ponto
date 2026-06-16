@@ -10,7 +10,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 })
 
-const VAZIO = { nome: '', latitude: '', longitude: '', raio_metros: 100 }
+const VAZIO = { nome: '', lat: '', lng: '', raio_metros: 100 }
 
 function ClickMap({ onPick }) {
   useMapEvents({ click(e) { onPick(e.latlng.lat, e.latlng.lng) } })
@@ -18,8 +18,8 @@ function ClickMap({ onPick }) {
 }
 
 function Modal({ titulo, dados, onChange, onSalvar, onFechar, loading, erro }) {
-  const lat = parseFloat(dados.latitude)
-  const lng = parseFloat(dados.longitude)
+  const lat = parseFloat(dados.lat)
+  const lng = parseFloat(dados.lng)
   const posValida = !isNaN(lat) && !isNaN(lng)
 
   return (
@@ -37,12 +37,12 @@ function Modal({ titulo, dados, onChange, onSalvar, onFechar, loading, erro }) {
         <div className="grid grid-cols-3 gap-3">
           <div>
             <label className="text-xs text-gray-400 block mb-1">Latitude</label>
-            <input type="number" step="any" value={dados.latitude} onChange={e => onChange('latitude', e.target.value)}
+            <input type="number" step="any" value={dados.lat} onChange={e => onChange('lat', e.target.value)}
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
           </div>
           <div>
             <label className="text-xs text-gray-400 block mb-1">Longitude</label>
-            <input type="number" step="any" value={dados.longitude} onChange={e => onChange('longitude', e.target.value)}
+            <input type="number" step="any" value={dados.lng} onChange={e => onChange('lng', e.target.value)}
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
           </div>
           <div>
@@ -60,7 +60,7 @@ function Modal({ titulo, dados, onChange, onSalvar, onFechar, loading, erro }) {
             scrollWheelZoom={false}
           >
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-            <ClickMap onPick={(la, lo) => { onChange('latitude', la); onChange('longitude', lo) }} />
+            <ClickMap onPick={(la, lo) => { onChange('lat', la); onChange('lng', lo) }} />
             {posValida && (
               <>
                 <Marker position={[lat, lng]} />
@@ -93,12 +93,12 @@ export default function Locais() {
   useEffect(() => { carregar() }, [])
 
   function abrirCriar() { setForm(VAZIO); setErro(''); setModal('criar') }
-  function abrirEditar(l) { setForm({ ...l, latitude: String(l.latitude), longitude: String(l.longitude) }); setErro(''); setModal(l) }
+  function abrirEditar(l) { setForm({ ...l, lat: String(l.lat), lng: String(l.lng) }); setErro(''); setModal(l) }
   function setField(key, val) { setForm(f => ({ ...f, [key]: val })) }
 
   async function salvar() {
     setErro(''); setLoading(true)
-    const body = { ...form, latitude: parseFloat(form.latitude), longitude: parseFloat(form.longitude), raio_metros: parseInt(form.raio_metros) }
+    const body = { ...form, lat: parseFloat(form.lat), lng: parseFloat(form.lng), raio_metros: parseInt(form.raio_metros) }
     try {
       if (modal === 'criar') await criarLocal(body)
       else await atualizarLocal(modal.id, body)
@@ -138,8 +138,8 @@ export default function Locais() {
             ) : lista.map(l => (
               <tr key={l.id} className="border-b border-gray-800/50 text-gray-300 hover:bg-gray-800/30">
                 <td className="px-4 py-3 font-medium">{l.nome}</td>
-                <td className="px-4 py-3 text-gray-500">{Number(l.latitude).toFixed(6)}</td>
-                <td className="px-4 py-3 text-gray-500">{Number(l.longitude).toFixed(6)}</td>
+                <td className="px-4 py-3 text-gray-500">{Number(l.lat).toFixed(6)}</td>
+                <td className="px-4 py-3 text-gray-500">{Number(l.lng).toFixed(6)}</td>
                 <td className="px-4 py-3">{l.raio_metros}m</td>
                 <td className="px-4 py-3 flex gap-3">
                   <button onClick={() => abrirEditar(l)} className="text-blue-400 hover:text-blue-300 text-xs underline">Editar</button>

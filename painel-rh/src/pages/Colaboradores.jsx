@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getColaboradores, criarColaborador, atualizarColaborador, excluirColaborador } from '../api'
 
-const CAMPOS_VAZIO = { nome: '', cpf: '', email: '', cargo: '', departamento: '', carga_horaria_diaria: 8 }
+const CAMPOS_VAZIO = { nome: '', cpf: '', email: '', cargo: '', carga_horaria_diaria: '08:00:00' }
 
 function Modal({ titulo, dados, onChange, onSalvar, onFechar, loading, erro }) {
   return (
@@ -16,8 +16,7 @@ function Modal({ titulo, dados, onChange, onSalvar, onFechar, loading, erro }) {
           { key: 'cpf', label: 'CPF', type: 'text' },
           { key: 'email', label: 'Email', type: 'email' },
           { key: 'cargo', label: 'Cargo', type: 'text' },
-          { key: 'departamento', label: 'Departamento', type: 'text' },
-          { key: 'carga_horaria_diaria', label: 'Carga horária diária (horas)', type: 'number' },
+          { key: 'carga_horaria_diaria', label: 'Carga horária diária (ex: 08:00:00)', type: 'text' },
         ].map(({ key, label, type }) => (
           <div key={key}>
             <label className="text-xs text-gray-400 block mb-1">{label}</label>
@@ -85,7 +84,6 @@ export default function Colaboradores() {
               <th className="px-4 py-3">CPF</th>
               <th className="px-4 py-3">Email</th>
               <th className="px-4 py-3">Cargo</th>
-              <th className="px-4 py-3">Departamento</th>
               <th className="px-4 py-3">CH Diária</th>
               <th className="px-4 py-3">Ações</th>
             </tr>
@@ -99,8 +97,7 @@ export default function Colaboradores() {
                 <td className="px-4 py-3 text-gray-500">{c.cpf}</td>
                 <td className="px-4 py-3">{c.email}</td>
                 <td className="px-4 py-3">{c.cargo || '—'}</td>
-                <td className="px-4 py-3">{c.departamento || '—'}</td>
-                <td className="px-4 py-3">{c.carga_horaria_diaria}h</td>
+                <td className="px-4 py-3">{c.carga_horaria_diaria || '—'}</td>
                 <td className="px-4 py-3 flex gap-3">
                   <button onClick={() => abrirEditar(c)} className="text-blue-400 hover:text-blue-300 text-xs underline">Editar</button>
                   <button onClick={() => excluir(c.id)} className="text-red-400 hover:text-red-300 text-xs underline">Excluir</button>

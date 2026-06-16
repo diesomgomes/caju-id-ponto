@@ -19,7 +19,7 @@ async def dashboard(rh=Depends(get_usuario_rh_atual)):
     hoje = date.today().isoformat()
 
     total_colab = sb.table("colaboradores").select("id", count="exact").eq("empresa_id", empresa_id).eq("ativo", True).execute()
-    regs_hoje = sb.table("registros_ponto").select("id, tipo, registrado_em, colaborador_id, latitude, longitude", count="exact").eq("empresa_id", empresa_id).gte("registrado_em", hoje + "T00:00:00").lte("registrado_em", hoje + "T23:59:59").execute()
+    regs_hoje = sb.table("registros_ponto").select("id, tipo, registrado_em, colaborador_id", count="exact").eq("empresa_id", empresa_id).gte("registrado_em", hoje + "T00:00:00").lte("registrado_em", hoje + "T23:59:59").execute()
 
     # Últimos 7 dias
     sete_dias = []
@@ -29,7 +29,7 @@ async def dashboard(rh=Depends(get_usuario_rh_atual)):
         sete_dias.append({"data": d, "total": r.count or 0})
 
     # Ultimos 10 registros com nome
-    ultimos_raw = sb.table("registros_ponto").select("id, tipo, registrado_em, latitude, longitude, foto_url, colaborador_id").eq("empresa_id", empresa_id).order("registrado_em", desc=True).limit(10).execute()
+    ultimos_raw = sb.table("registros_ponto").select("id, tipo, registrado_em, foto_url, colaborador_id").eq("empresa_id", empresa_id).order("registrado_em", desc=True).limit(10).execute()
     ids_colab = list({r["colaborador_id"] for r in (ultimos_raw.data or [])})
     nomes = {}
     if ids_colab:
@@ -142,18 +142,21 @@ async def get_foto_url(registro_id: str, rh=Depends(get_usuario_rh_atual)):
 @router.post("/registros/{registro_id}/ajuste")
 async def ajustar_registro(registro_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
 
-    res = sb.table("registros_ponto").select("empresa_id").eq("id", registro_id).single().execute()
+    res = sb.table("registros_ponto").select("empresa_id, tipo, registrado_em").eq("id", registro_id).single().execute()
     if not res.data or res.data["empresa_id"] != rh["empresa_id"]:
         raise HTTPException(404, "Registro não encontrado")
 
+    campos = []
+    if body.get("tipo"): campos.append(f"tipo: {res.data['tipo']} → {body['tipo']}")
+    if body.get("registrado_em"): campos.append(f"horario: {res.data['registrado_em']} → {body['registrado_em']}")
+
     ajuste = {
         "registro_id": registro_id,
-        "rh_id": rh["id"],
-        "tipo_anterior": None,
-        "tipo_novo": body.get("tipo"),
-        "horario_anterior": None,
-        "horario_novo": body.get("registrado_em"),
-        "motivo": body.get("motivo"),
+        "usuario_rh_id": rh["id"],
+        "campo_alterado": ", ".join(campos) or "manual",
+        "valor_anterior": res.data.get("tipo"),
+        "valor_novo": body.get("tipo") or body.get("registrado_em"),
+        "justificativa": body.get("motivo", ""),
     }
     sb.table("ajustes_ponto").insert(ajuste).execute()
 
@@ -191,7 +194,33 @@ async def listar_jornadas(
         cn = sb.table("colaboradores").select("id, nome").in_("id", ids_colab).execute()
         nomes = {c["id"]: c["nome"] for c in (cn.data or [])}
 
-    return [{**j, "colaborador_nome": nomes.get(j["colaborador_id"], "—")} for j in jornadas]
+    # Busca registros do período para montar horários individuais
+    regs_idx = {}
+    if ids_colab:
+        rq = sb.table("registros_ponto").select("colaborador_id, tipo, registrado_em") \
+            .eq("empresa_id", rh["empresa_id"]) \
+            .gte("registrado_em", inicio + "T00:00:00") \
+            .lt("registrado_em", fim + "T00:00:00") \
+            .in_("colaborador_id", ids_colab).execute()
+        for r in (rq.data or []):
+            dt = r["registrado_em"][:10]
+            key = (r["colaborador_id"], dt, r["tipo"])
+            regs_idx[key] = r["registrado_em"][11:19]
+
+    result = []
+    for j in jornadas:
+        cid = j["colaborador_id"]
+        d = j["data"]
+        result.append({
+            **j,
+            "colaborador_nome": nomes.get(cid, "—"),
+            "hora_entrada": regs_idx.get((cid, d, "entrada")),
+            "hora_saida_almoco": regs_idx.get((cid, d, "saida_almoco")),
+            "hora_retorno_almoco": regs_idx.get((cid, d, "retorno_almoco")),
+            "hora_saida": regs_idx.get((cid, d, "saida")),
+            "total_trabalhado": j.get("horas_trabalhadas"),
+        })
+    return result
 
 
 @router.get("/jornadas/exportar")
