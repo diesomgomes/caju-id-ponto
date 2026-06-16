@@ -1,0 +1,30 @@
+# Segredos — NUNCA commitar
+.env
+.env.local
+.env.*.local
+**/.env
+!**/.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Node / Frontends
+node_modules/
+dist/
+build/
+.next/
+.vite/
+
+# IDE / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

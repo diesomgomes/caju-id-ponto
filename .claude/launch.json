@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "pwa-colaborador",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "pwa-colaborador", "-p", "5173", "--no-clipboard"],
+      "port": 5173
+    }
+  ]
+}

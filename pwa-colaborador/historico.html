@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#10b981" />
+  <title>Meu Ponto — CAJU ID</title>
+  <link rel="manifest" href="/manifest.json" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background-color: #111827; color: #f9fafb; font-family: system-ui, sans-serif; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body class="max-w-md mx-auto flex flex-col min-h-screen">
+
+  <!-- Header -->
+  <div class="flex items-center gap-3 px-5 pt-10 pb-4 border-b border-gray-800">
+    <a href="/" class="text-gray-400 text-2xl leading-none">‹</a>
+    <h1 class="font-bold text-white text-xl">📋 Meu Ponto</h1>
+  </div>
+
+  <!-- Seletor de mês -->
+  <div class="flex items-center justify-between px-5 py-4 border-b border-gray-800">
+    <button id="btn-mes-ant" class="text-gray-400 hover:text-white text-xl px-2">‹</button>
+    <p id="label-mes" class="font-semibold text-white capitalize"></p>
+    <button id="btn-mes-prox" class="text-gray-400 hover:text-white text-xl px-2">›</button>
+  </div>
+
+  <!-- Lista de dias -->
+  <div id="lista-dias" class="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+    <p class="text-center text-gray-500 py-10">Carregando...</p>
+  </div>
+
+  <!-- Abas -->
+  <div class="flex border-t border-gray-800">
+    <a href="/" class="flex-1 py-4 text-center text-gray-400 hover:text-white text-sm">🏠 Início</a>
+    <span class="flex-1 py-4 text-center text-emerald-400 text-sm font-bold">📋 Meu Ponto</span>
+    <a href="/saldo.html" class="flex-1 py-4 text-center text-gray-400 hover:text-white text-sm">⏱ Saldo</a>
+  </div>
+
+  <script type="module">
+    import { getToken, limparSessao, getHistorico } from "./src/api.js";
+
+    if (!getToken()) { location.href = "/"; }
+
+    const TIPO_INFO = {
+      entrada:        { label: "Entrada",        emoji: "🟢" },
+      saida_almoco:   { label: "Saída almoço",   emoji: "🟡" },
+      retorno_almoco: { label: "Retorno almoço", emoji: "🔵" },
+      saida:          { label: "Saída",          emoji: "🔴" },
+    };
+
+    let mesAtual = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+
+    function formatarMes(ym) {
+      const [y, m] = ym.split("-");
+      return new Date(y, m - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    }
+
+    function navMes(delta) {
+      const [y, m] = mesAtual.split("-").map(Number);
+      const d = new Date(y, m - 1 + delta, 1);
+      mesAtual = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      carregar();
+    }
+
+    function hora(ts) {
+      return new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function saldoCor(saldo) {
+      if (!saldo) return "text-gray-400";
+      return saldo.startsWith("-") ? "text-red-400" : "text-emerald-400";
+    }
+
+    async function carregar() {
+      document.getElementById("label-mes").textContent = formatarMes(mesAtual);
+      const lista = document.getElementById("lista-dias");
+      lista.innerHTML = `<p class="text-center text-gray-500 py-10">Carregando...</p>`;
+      try {
+        const dados = await getHistorico(mesAtual);
+        if (!dados.dias || dados.dias.length === 0) {
+          lista.innerHTML = `<p class="text-center text-gray-500 py-10">Nenhum registro neste mês.</p>`;
+          return;
+        }
+        lista.innerHTML = dados.dias.map(dia => {
+          const batidas = (dia.registros || []).map(r =>
+            `<div class="flex justify-between text-sm py-0.5">
+               <span class="text-gray-300">${TIPO_INFO[r.tipo]?.emoji || ""} ${TIPO_INFO[r.tipo]?.label || r.tipo}</span>
+               <span class="font-mono text-gray-100">${hora(r.registrado_em)}</span>
+             </div>`
+          ).join("");
+          const semBatidas = !dia.registros?.length
+            ? `<p class="text-sm text-red-400">Sem registros</p>` : "";
+          const saldoStr = dia.saldo_dia
+            ? `<span class="${saldoCor(dia.saldo_dia)} font-bold text-sm">${dia.saldo_dia.startsWith("-") ? "" : "+"}${dia.saldo_dia}</span>`
+            : "";
+          return `
+            <div class="bg-gray-800 rounded-xl p-4">
+              <div class="flex justify-between items-center mb-2">
+                <p class="font-semibold text-white text-sm">${dia.data_br}</p>
+                ${saldoStr}
+              </div>
+              ${batidas}
+              ${semBatidas}
+              ${dia.horas_trabalhadas
+                ? `<p class="text-xs text-gray-500 mt-2">⏱ ${dia.horas_trabalhadas} trabalhadas</p>`
+                : ""}
+            </div>`;
+        }).join("");
+      } catch (e) {
+        lista.innerHTML = `<p class="text-center text-red-400 py-10">${e.message}</p>`;
+      }
+    }
+
+    document.getElementById("btn-mes-ant").addEventListener("click", () => navMes(-1));
+    document.getElementById("btn-mes-prox").addEventListener("click", () => navMes(1));
+    carregar();
+  </script>
+</body>
+</html>

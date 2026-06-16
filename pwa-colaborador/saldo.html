@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#10b981" />
+  <title>Saldo de Horas — CAJU ID</title>
+  <link rel="manifest" href="/manifest.json" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <style>
+    body { background-color: #111827; color: #f9fafb; font-family: system-ui, sans-serif; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body class="max-w-md mx-auto flex flex-col min-h-screen">
+
+  <!-- Header -->
+  <div class="flex items-center gap-3 px-5 pt-10 pb-4 border-b border-gray-800">
+    <a href="/" class="text-gray-400 text-2xl leading-none">‹</a>
+    <h1 class="font-bold text-white text-xl">⏱ Banco de Horas</h1>
+  </div>
+
+  <!-- Cards de saldo -->
+  <div class="px-5 py-5 space-y-3" id="cards-saldo">
+    <p class="text-center text-gray-500 py-10">Carregando...</p>
+  </div>
+
+  <!-- Gráfico 7 dias -->
+  <div class="px-5 pb-6">
+    <p class="text-gray-400 text-sm font-semibold mb-3 uppercase tracking-wider">Últimos 7 dias</p>
+    <div class="bg-gray-800 rounded-xl p-4">
+      <canvas id="grafico-7dias" height="160"></canvas>
+    </div>
+  </div>
+
+  <!-- Abas -->
+  <div class="flex border-t border-gray-800 mt-auto">
+    <a href="/" class="flex-1 py-4 text-center text-gray-400 hover:text-white text-sm">🏠 Início</a>
+    <a href="/historico.html" class="flex-1 py-4 text-center text-gray-400 hover:text-white text-sm">📋 Meu Ponto</a>
+    <span class="flex-1 py-4 text-center text-emerald-400 text-sm font-bold">⏱ Saldo</span>
+  </div>
+
+  <script type="module">
+    import { getToken, getSaldo } from "./src/api.js";
+
+    if (!getToken()) { location.href = "/"; }
+
+    function corSaldo(v) {
+      if (v === null || v === undefined) return { txt: "text-gray-400", bg: "bg-gray-700" };
+      return v >= 0
+        ? { txt: "text-emerald-400", bg: "bg-emerald-900/40" }
+        : { txt: "text-red-400",     bg: "bg-red-900/40"     };
+    }
+
+    function fmtSaldo(v) {
+      if (v === null || v === undefined || v === "—") return "—";
+      const s = String(v);
+      return (s.startsWith("-") ? "" : "+") + s;
+    }
+
+    async function carregar() {
+      const container = document.getElementById("cards-saldo");
+      try {
+        const d = await getSaldo();
+        const itens = [
+          { label: "Hoje",         val: d.hoje },
+          { label: "Esta semana",  val: d.semana },
+          { label: "Este mês",     val: d.mes },
+          { label: "Acumulado",    val: d.acumulado },
+        ];
+        container.innerHTML = itens.map(it => {
+          const c = corSaldo(it.val === "—" ? null : it.val);
+          return `
+            <div class="${c.bg} rounded-xl px-5 py-4 flex justify-between items-center border border-gray-700">
+              <span class="text-gray-300 font-medium">${it.label}</span>
+              <span class="${c.txt} font-bold text-lg font-mono">${fmtSaldo(it.val)}</span>
+            </div>`;
+        }).join("");
+
+        // Gráfico
+        if (d.ultimos_7_dias?.length) {
+          const labels = d.ultimos_7_dias.map(x => x.data_br);
+          const valores = d.ultimos_7_dias.map(x => {
+            const s = x.saldo_dia || "00:00:00";
+            const neg = s.startsWith("-");
+            const [h, m] = s.replace("-", "").split(":");
+            const min = parseInt(h) * 60 + parseInt(m);
+            return neg ? -min : min;
+          });
+          new Chart(document.getElementById("grafico-7dias"), {
+            type: "bar",
+            data: {
+              labels,
+              datasets: [{
+                data: valores,
+                backgroundColor: valores.map(v => v >= 0 ? "#10b981" : "#ef4444"),
+                borderRadius: 6,
+              }],
+            },
+            options: {
+              responsive: true,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { ticks: { color: "#9ca3af", font: { size: 11 } }, grid: { display: false } },
+                y: {
+                  ticks: { color: "#9ca3af", font: { size: 11 },
+                    callback: v => `${v >= 0 ? "+" : ""}${Math.floor(Math.abs(v) / 60)}h${String(Math.abs(v) % 60).padStart(2,"0")}` },
+                  grid: { color: "#374151" },
+                },
+              },
+            },
+          });
+        }
+      } catch (e) {
+        container.innerHTML = `<p class="text-center text-red-400 py-10">${e.message}</p>`;
+      }
+    }
+
+    carregar();
+  </script>
+</body>
+</html>
