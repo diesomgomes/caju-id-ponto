@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import ponto
+from routers import ponto, rh
 
 app = FastAPI(title="Ponto Eletrônico API", version="0.1.0")
 
@@ -14,6 +14,7 @@ app.add_middleware(
 )
 
 app.include_router(ponto.router)
+app.include_router(rh.router)
 
 
 @app.get("/health")
