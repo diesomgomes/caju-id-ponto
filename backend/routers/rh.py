@@ -4,21 +4,17 @@ from datetime import date, timedelta, datetime, timezone
 from typing import Optional
 import csv
 import io
-from db.supabase_client import get_client
+from db.supabase_client import supabase as sb
 from auth.deps import get_usuario_rh_atual
 
 router = APIRouter(prefix="/rh", tags=["rh"])
-
-
-def _supabase():
-    return get_client()
 
 
 # ─── Dashboard ───────────────────────────────────────────────────────────────
 
 @router.get("/dashboard")
 async def dashboard(rh=Depends(get_usuario_rh_atual)):
-    sb = _supabase()
+
     empresa_id = rh["empresa_id"]
     hoje = date.today().isoformat()
 
@@ -58,14 +54,14 @@ async def dashboard(rh=Depends(get_usuario_rh_atual)):
 
 @router.get("/colaboradores")
 async def listar_colaboradores(rh=Depends(get_usuario_rh_atual)):
-    sb = _supabase()
+
     res = sb.table("colaboradores").select("*").eq("empresa_id", rh["empresa_id"]).order("nome").execute()
     return res.data or []
 
 
 @router.get("/colaboradores/{colab_id}")
 async def get_colaborador(colab_id: str, rh=Depends(get_usuario_rh_atual)):
-    sb = _supabase()
+
     res = sb.table("colaboradores").select("*").eq("id", colab_id).eq("empresa_id", rh["empresa_id"]).single().execute()
     if not res.data:
         raise HTTPException(404, "Colaborador não encontrado")
@@ -74,7 +70,7 @@ async def get_colaborador(colab_id: str, rh=Depends(get_usuario_rh_atual)):
 
 @router.post("/colaboradores")
 async def criar_colaborador(body: dict, rh=Depends(get_usuario_rh_atual)):
-    sb = _supabase()
+
     payload = {**body, "empresa_id": rh["empresa_id"], "ativo": True}
     res = sb.table("colaboradores").insert(payload).execute()
     if not res.data:
@@ -84,7 +80,7 @@ async def criar_colaborador(body: dict, rh=Depends(get_usuario_rh_atual)):
 
 @router.put("/colaboradores/{colab_id}")
 async def atualizar_colaborador(colab_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
-    sb = _supabase()
+
     body.pop("id", None); body.pop("empresa_id", None)
     res = sb.table("colaboradores").update(body).eq("id", colab_id).eq("empresa_id", rh["empresa_id"]).execute()
     if not res.data:
@@ -94,7 +90,7 @@ async def atualizar_colaborador(colab_id: str, body: dict, rh=Depends(get_usuari
 
 @router.delete("/colaboradores/{colab_id}")
 async def excluir_colaborador(colab_id: str, rh=Depends(get_usuario_rh_atual)):
-    sb = _supabase()
+
     sb.table("colaboradores").update({"ativo": False}).eq("id", colab_id).eq("empresa_id", rh["empresa_id"]).execute()
     return {"ok": True}
 
@@ -108,7 +104,7 @@ async def listar_registros(
     data: Optional[str] = None,
     rh=Depends(get_usuario_rh_atual),
 ):
-    sb = _supabase()
+
     q = sb.table("registros_ponto").select("*").eq("empresa_id", rh["empresa_id"])
     if colaborador_id:
         q = q.eq("colaborador_id", colaborador_id)
@@ -131,7 +127,7 @@ async def listar_registros(
 @router.get("/registros/{registro_id}/foto")
 async def get_foto_url(registro_id: str, rh=Depends(get_usuario_rh_atual)):
     from services.storage import gerar_url_assinada
-    sb = _supabase()
+
     res = sb.table("registros_ponto").select("foto_url, empresa_id").eq("id", registro_id).single().execute()
     if not res.data or res.data.get("empresa_id") != rh["empresa_id"]:
         raise HTTPException(404, "Registro não encontrado")
@@ -145,7 +141,7 @@ async def get_foto_url(registro_id: str, rh=Depends(get_usuario_rh_atual)):
 
 @router.post("/registros/{registro_id}/ajuste")
 async def ajustar_registro(registro_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
-    sb = _supabase()
+
     res = sb.table("registros_ponto").select("empresa_id").eq("id", registro_id).single().execute()
     if not res.data or res.data["empresa_id"] != rh["empresa_id"]:
         raise HTTPException(404, "Registro não encontrado")
@@ -176,7 +172,7 @@ async def listar_jornadas(
     colaborador_id: Optional[str] = None,
     rh=Depends(get_usuario_rh_atual),
 ):
-    sb = _supabase()
+
     inicio = mes + "-01"
     ano, m = int(mes.split("-")[0]), int(mes.split("-")[1])
     fim_m = m + 1 if m < 12 else 1
@@ -232,14 +228,14 @@ async def exportar_jornadas(
 
 @router.get("/locais")
 async def listar_locais(rh=Depends(get_usuario_rh_atual)):
-    sb = _supabase()
+
     res = sb.table("locais_permitidos").select("*").eq("empresa_id", rh["empresa_id"]).order("nome").execute()
     return res.data or []
 
 
 @router.post("/locais")
 async def criar_local(body: dict, rh=Depends(get_usuario_rh_atual)):
-    sb = _supabase()
+
     payload = {**body, "empresa_id": rh["empresa_id"]}
     res = sb.table("locais_permitidos").insert(payload).execute()
     if not res.data:
@@ -249,7 +245,7 @@ async def criar_local(body: dict, rh=Depends(get_usuario_rh_atual)):
 
 @router.put("/locais/{local_id}")
 async def atualizar_local(local_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
-    sb = _supabase()
+
     body.pop("id", None); body.pop("empresa_id", None)
     res = sb.table("locais_permitidos").update(body).eq("id", local_id).eq("empresa_id", rh["empresa_id"]).execute()
     if not res.data:
@@ -259,6 +255,6 @@ async def atualizar_local(local_id: str, body: dict, rh=Depends(get_usuario_rh_a
 
 @router.delete("/locais/{local_id}")
 async def excluir_local(local_id: str, rh=Depends(get_usuario_rh_atual)):
-    sb = _supabase()
+
     sb.table("locais_permitidos").delete().eq("id", local_id).eq("empresa_id", rh["empresa_id"]).execute()
     return {"ok": True}
