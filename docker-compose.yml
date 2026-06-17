@@ -5,6 +5,7 @@ services:
   # ── Reverse proxy + SSL automático ────────────────────────────────────────
   nginx-proxy:
     image: nginxproxy/nginx-proxy:alpine
+    container_name: nginx-proxy
     ports:
       - "80:80"
       - "443:443"
@@ -13,6 +14,8 @@ services:
       - nginx-certs:/etc/nginx/certs
       - nginx-vhost:/etc/nginx/vhost.d
       - nginx-html:/usr/share/nginx/html
+    labels:
+      - "com.github.nginx-proxy.nginx"
     restart: unless-stopped
 
   acme-companion:
@@ -25,6 +28,7 @@ services:
       - acme:/etc/acme.sh
     environment:
       - DEFAULT_EMAIL=${SSL_EMAIL}
+      - NGINX_PROXY_CONTAINER=nginx-proxy
     depends_on: [nginx-proxy]
     restart: unless-stopped
 
