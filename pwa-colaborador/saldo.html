@@ -3,14 +3,21 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <meta name="theme-color" content="#10b981" />
+  <meta name="theme-color" content="#0f172a" />
   <title>Saldo de Horas — CAJU ID</title>
+  <script src="/config.js"></script>
   <link rel="manifest" href="/manifest.json" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <style>
-    body { background-color: #111827; color: #f9fafb; font-family: system-ui, sans-serif; }
+    body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, sans-serif; }
     .hidden { display: none !important; }
+    .bottom-nav { background: #0f172a; border-top: 1px solid rgba(255,255,255,0.07); }
+    .nav-tab { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 0; flex: 1; cursor: pointer; text-decoration: none; transition: color .15s; }
+    .nav-tab .nav-icon { font-size: 20px; line-height: 1; }
+    .nav-tab .nav-label { font-size: 10px; font-weight: 500; letter-spacing: .02em; }
+    .nav-tab.active { color: #10b981; }
+    .nav-tab:not(.active) { color: rgba(255,255,255,0.3); }
   </style>
 </head>
 <body class="max-w-md mx-auto flex flex-col min-h-screen">
@@ -35,11 +42,19 @@
   </div>
 
   <!-- Abas -->
-  <div class="flex border-t border-gray-800 mt-auto">
-    <a href="/" class="flex-1 py-3 text-center text-gray-400 hover:text-white text-xs">🏠 Início</a>
-    <a href="/historico.html" class="flex-1 py-3 text-center text-gray-400 hover:text-white text-xs">📋 Meu Ponto</a>
-    <span class="flex-1 py-3 text-center text-emerald-400 text-xs font-bold">⏱ Saldo</span>
-    <a href="/comprovante.html" class="flex-1 py-3 text-center text-gray-400 hover:text-white text-xs">📄 Comprovante</a>
+  <div class="bottom-nav flex mt-auto">
+    <a href="/" class="nav-tab">
+      <span class="nav-icon">🏠</span><span class="nav-label">Início</span>
+    </a>
+    <a href="/historico.html" class="nav-tab">
+      <span class="nav-icon">📋</span><span class="nav-label">Meu Ponto</span>
+    </a>
+    <span class="nav-tab active">
+      <span class="nav-icon">⏱</span><span class="nav-label">Saldo</span>
+    </span>
+    <a href="/comprovante.html" class="nav-tab">
+      <span class="nav-icon">📄</span><span class="nav-label">Comprovante</span>
+    </a>
   </div>
 
   <script type="module">

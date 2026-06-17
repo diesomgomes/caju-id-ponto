@@ -1,5 +1,10 @@
-const CACHE = "ponto-v1";
-const SHELL = ["/", "/index.html", "/src/app.js", "/src/api.js", "/src/camera.js", "/src/geolocation.js", "/manifest.json"];
+const CACHE = "ponto-v2";
+const SHELL = [
+  "/", "/index.html",
+  "/historico.html", "/saldo.html", "/comprovante.html",
+  "/src/app.js", "/src/api.js", "/src/camera.js", "/src/geolocation.js",
+  "/manifest.json", "/config.js",
+];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -16,7 +21,6 @@ self.addEventListener("activate", e => {
 self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
   const url = new URL(e.request.url);
-  // Não cacheia chamadas de API
   if (url.pathname.startsWith("/ponto") || url.hostname.includes("supabase")) return;
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request))

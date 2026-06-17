@@ -51,11 +51,27 @@
   </div>
 
   <!-- Abas -->
-  <div class="flex border-t border-gray-800 mt-auto no-print">
-    <a href="/" class="flex-1 py-3 text-center text-gray-400 hover:text-white text-xs">🏠 Início</a>
-    <a href="/historico.html" class="flex-1 py-3 text-center text-gray-400 hover:text-white text-xs">📋 Meu Ponto</a>
-    <a href="/saldo.html" class="flex-1 py-3 text-center text-gray-400 hover:text-white text-xs">⏱ Saldo</a>
-    <span class="flex-1 py-3 text-center text-emerald-400 text-xs font-bold">📄 Comprovante</span>
+  <style>
+    .bottom-nav { background: #111827; border-top: 1px solid rgba(255,255,255,0.07); }
+    .nav-tab { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 0; flex: 1; cursor: pointer; text-decoration: none; transition: color .15s; }
+    .nav-tab .nav-icon { font-size: 20px; line-height: 1; }
+    .nav-tab .nav-label { font-size: 10px; font-weight: 500; letter-spacing: .02em; }
+    .nav-tab.active { color: #10b981; }
+    .nav-tab:not(.active) { color: rgba(255,255,255,0.3); }
+  </style>
+  <div class="bottom-nav flex mt-auto no-print">
+    <a href="/" class="nav-tab">
+      <span class="nav-icon">🏠</span><span class="nav-label">Início</span>
+    </a>
+    <a href="/historico.html" class="nav-tab">
+      <span class="nav-icon">📋</span><span class="nav-label">Meu Ponto</span>
+    </a>
+    <a href="/saldo.html" class="nav-tab">
+      <span class="nav-icon">⏱</span><span class="nav-label">Saldo</span>
+    </a>
+    <span class="nav-tab active">
+      <span class="nav-icon">📄</span><span class="nav-label">Comprovante</span>
+    </span>
   </div>
 
   <script type="module">
