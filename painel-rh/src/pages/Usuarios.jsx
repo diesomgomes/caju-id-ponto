@@ -4,8 +4,7 @@ import { getSessao } from '../api'
 
 const PAPEIS = [
   { value: 'admin', label: 'Administrador' },
-  { value: 'rh', label: 'RH' },
-  { value: 'gestor', label: 'Gestor' },
+  { value: 'rh', label: 'Gestão' },
 ]
 
 const VAZIO_CRIAR = { nome: '', email: '', senha: '', papel: 'rh', empresa_id: '' }
@@ -117,8 +116,8 @@ function ModalEditar({ usuario, onSalvar, onFechar, loading, erro }) {
   )
 }
 
-const labelPapel = { admin: 'Administrador', rh: 'RH', gestor: 'Gestor' }
-const corPapel = { admin: 'text-purple-400 bg-purple-900/30', rh: 'text-emerald-400 bg-emerald-900/30', gestor: 'text-yellow-400 bg-yellow-900/30' }
+const labelPapel = { admin: 'Administrador', rh: 'Gestão' }
+const corPapel = { admin: 'text-purple-400 bg-purple-900/30', rh: 'text-emerald-400 bg-emerald-900/30' }
 
 export default function Usuarios() {
   const [lista, setLista] = useState([])

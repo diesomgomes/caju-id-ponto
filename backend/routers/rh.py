@@ -356,8 +356,6 @@ async def listar_usuarios(rh=Depends(get_usuario_rh_atual)):
 
 @router.post("/usuarios")
 async def criar_usuario(body: dict, rh=Depends(get_usuario_rh_atual)):
-    if rh.get("papel") != "admin":
-        raise HTTPException(403, "Apenas administradores podem criar usuários RH")
     ids = _empresa_ids(rh)
     empresa = body.get("empresa_id") or rh["empresa_id"]
     if empresa not in ids:
@@ -367,6 +365,8 @@ async def criar_usuario(body: dict, rh=Depends(get_usuario_rh_atual)):
     senha = body.get("senha", "").strip()
     nome = body.get("nome", "").strip()
     papel = body.get("papel", "rh")
+    if papel == "admin" and rh.get("papel") != "admin":
+        raise HTTPException(403, "Apenas administradores podem criar outros administradores")
 
     if not email or not senha or not nome:
         raise HTTPException(400, "Nome, email e senha são obrigatórios")
@@ -399,9 +399,11 @@ async def criar_usuario(body: dict, rh=Depends(get_usuario_rh_atual)):
 @router.put("/usuarios/{usuario_id}")
 async def atualizar_usuario(usuario_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
-    res = sb.table("usuarios_rh").select("auth_user_id, empresa_id").eq("id", usuario_id).single().execute()
+    res = sb.table("usuarios_rh").select("auth_user_id, empresa_id, papel").eq("id", usuario_id).single().execute()
     if not res.data or res.data["empresa_id"] not in ids:
         raise HTTPException(404, "Usuário não encontrado")
+    if res.data.get("papel") == "admin" and rh.get("papel") != "admin":
+        raise HTTPException(403, "Sem permissão para editar um administrador")
 
     auth_user_id = res.data["auth_user_id"]
     auth_patch = {}
@@ -427,14 +429,14 @@ async def atualizar_usuario(usuario_id: str, body: dict, rh=Depends(get_usuario_
 
 @router.delete("/usuarios/{usuario_id}")
 async def excluir_usuario(usuario_id: str, rh=Depends(get_usuario_rh_atual)):
-    if rh.get("papel") != "admin":
-        raise HTTPException(403, "Apenas administradores podem excluir usuários")
     if rh["id"] == usuario_id:
         raise HTTPException(400, "Não é possível excluir o próprio usuário")
     ids = _empresa_ids(rh)
-    res = sb.table("usuarios_rh").select("auth_user_id, empresa_id").eq("id", usuario_id).single().execute()
+    res = sb.table("usuarios_rh").select("auth_user_id, empresa_id, papel").eq("id", usuario_id).single().execute()
     if not res.data or res.data["empresa_id"] not in ids:
         raise HTTPException(404, "Usuário não encontrado")
+    if res.data.get("papel") == "admin" and rh.get("papel") != "admin":
+        raise HTTPException(403, "Sem permissão para excluir um administrador")
 
     auth_user_id = res.data.get("auth_user_id")
     sb.table("usuarios_rh").delete().eq("id", usuario_id).execute()

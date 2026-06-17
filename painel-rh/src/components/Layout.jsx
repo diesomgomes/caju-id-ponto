@@ -10,14 +10,13 @@ const NAV_TODOS = [
   { to: '/locais', label: 'Locais' },
   { to: '/empresas', label: 'Empresas' },
   { to: '/modelos-jornada', label: 'Tipos de Jornada' },
-  { to: '/usuarios', label: 'Usuários RH', apenasAdmin: true },
+  { to: '/usuarios', label: 'Usuários RH' },
 ]
 
-const LABEL_PAPEL = { admin: 'Administrador', rh: 'RH', gestor: 'Gestor' }
+const LABEL_PAPEL = { admin: 'Administrador', rh: 'Gestão' }
 const COR_PAPEL = {
   admin: 'text-purple-400 bg-purple-900/30',
   rh: 'text-emerald-400 bg-emerald-900/30',
-  gestor: 'text-yellow-400 bg-yellow-900/30',
 }
 
 export default function Layout() {
@@ -33,8 +32,7 @@ export default function Layout() {
     navigate('/login')
   }
 
-  const isAdmin = me?.papel === 'admin'
-  const nav = NAV_TODOS.filter(item => !item.apenasAdmin || isAdmin)
+  const nav = NAV_TODOS
 
   return (
     <div className="flex h-screen bg-gray-950 text-gray-100">
