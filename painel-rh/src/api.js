@@ -1,6 +1,6 @@
-const API_URL = 'https://caju-id-ponto-production.up.railway.app'
-const SUPABASE_URL = 'https://kgrpynemusujedajtsas.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtncnB5bmVtdXN1amVkYWp0c2FzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MDIyOTcsImV4cCI6MjA5NzE3ODI5N30.Pobruun9mqxyl5hD51v6_eeyzts0NQYkFjraNsGP0HU'
+const API_URL = window.__API_URL__ || 'https://caju-id-ponto-production.up.railway.app'
+const SUPABASE_URL = window.__SUPABASE_URL__ || 'https://kgrpynemusujedajtsas.supabase.co'
+const SUPABASE_ANON_KEY = window.__SUPABASE_ANON_KEY__ || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtncnB5bmVtdXN1amVkYWp0c2FzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MDIyOTcsImV4cCI6MjA5NzE3ODI5N30.Pobruun9mqxyl5hD51v6_eeyzts0NQYkFjraNsGP0HU'
 
 export async function loginRH(email, senha) {
   const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
