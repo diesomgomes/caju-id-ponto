@@ -20,7 +20,7 @@ function ModalFoto({ registro, onClose }) {
   }, [registro.id])
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4" onClick={onClose}>
       <div className="bg-gray-900 rounded-xl overflow-hidden w-full max-w-2xl" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex justify-between items-center px-5 py-3 border-b border-gray-800">
@@ -102,7 +102,7 @@ function ModalAjuste({ registro, onClose, onSalvo }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4" onClick={onClose}>
       <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center">
           <h3 className="font-semibold text-gray-100">Ajuste de Registro</h3>

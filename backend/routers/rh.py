@@ -468,7 +468,10 @@ async def criar_modelo_jornada(body: dict, rh=Depends(get_usuario_rh_atual)):
         raise HTTPException(403, "Sem acesso a esta empresa")
     payload = {**body, "empresa_id": empresa, "ativo": True}
     payload.pop("id", None); payload.pop("criado_em", None)
-    res = sb.table("modelos_jornada").insert(payload).execute()
+    try:
+        res = sb.table("modelos_jornada").insert(payload).execute()
+    except Exception as e:
+        raise HTTPException(400, f"Erro ao salvar: {e}")
     if not res.data:
         raise HTTPException(400, "Erro ao criar modelo de jornada")
     return res.data[0]
@@ -478,7 +481,10 @@ async def criar_modelo_jornada(body: dict, rh=Depends(get_usuario_rh_atual)):
 async def atualizar_modelo_jornada(modelo_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     body.pop("id", None); body.pop("empresa_id", None); body.pop("criado_em", None)
-    res = sb.table("modelos_jornada").update(body).eq("id", modelo_id).in_("empresa_id", ids).execute()
+    try:
+        res = sb.table("modelos_jornada").update(body).eq("id", modelo_id).in_("empresa_id", ids).execute()
+    except Exception as e:
+        raise HTTPException(400, f"Erro ao salvar: {e}")
     if not res.data:
         raise HTTPException(404, "Modelo de jornada não encontrado")
     return res.data[0]
