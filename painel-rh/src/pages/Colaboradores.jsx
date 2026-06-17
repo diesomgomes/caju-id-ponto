@@ -26,7 +26,7 @@ const JORNADA_VAZIO = {
 function ModalColaborador({ titulo, dados, onChange, onSalvar, onFechar, loading, erro, empresas, modelos }) {
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onFechar}>
-      <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4" onClick={e => e.stopPropagation()}>
+      <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center">
           <h3 className="font-semibold text-gray-100">{titulo}</h3>
           <button onClick={onFechar} className="text-gray-400 hover:text-gray-100 text-xl">×</button>
@@ -106,7 +106,7 @@ function ModalLocais({ colaborador, todosLocais, onFechar, onSalvo }) {
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onFechar}>
-      <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4" onClick={e => e.stopPropagation()}>
+      <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center">
           <div>
             <h3 className="font-semibold text-gray-100">Locais Permitidos</h3>
@@ -240,7 +240,7 @@ function ModalJornada({ colaborador, onFechar, onSalvo }) {
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onFechar}>
-      <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-5" onClick={e => e.stopPropagation()}>
+      <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-5 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center">
           <div>
             <h3 className="font-semibold text-gray-100">Configurar Jornada</h3>

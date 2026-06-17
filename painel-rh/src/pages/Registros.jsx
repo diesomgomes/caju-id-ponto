@@ -21,25 +21,64 @@ function ModalFoto({ registro, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-gray-900 rounded-xl p-4 max-w-lg w-full space-y-4" onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center">
-          <h3 className="font-semibold text-gray-100">Selfie — {registro.tipo?.replace(/_/g,' ')}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-100 text-xl">×</button>
-        </div>
-        {url
-          ? <img src={url} alt="selfie" className="w-full rounded-lg" />
-          : <p className="text-gray-400 text-sm">Carregando foto…</p>
-        }
-        {registro.lat_registro && (
-          <div className="h-48 rounded-lg overflow-hidden">
-            <MapContainer center={[registro.lat_registro, registro.lng_registro]} zoom={16} style={{ height: '100%' }} scrollWheelZoom={false}>
-              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-              <Marker position={[registro.lat_registro, registro.lng_registro]}>
-                <Popup>{registro.colaborador_nome}</Popup>
-              </Marker>
-            </MapContainer>
+      <div className="bg-gray-900 rounded-xl overflow-hidden w-full max-w-2xl" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex justify-between items-center px-5 py-3 border-b border-gray-800">
+          <div>
+            <p className="text-sm font-semibold text-gray-100 capitalize">
+              {registro.tipo?.replace(/_/g,' ')}
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {registro.colaborador_nome} · {new Date(registro.registrado_em).toLocaleString('pt-BR')}
+            </p>
           </div>
-        )}
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-100 text-xl leading-none ml-4">×</button>
+        </div>
+
+        {/* Corpo: foto | mapa lado a lado */}
+        <div className="flex" style={{ height: 300 }}>
+          {/* Foto */}
+          <div className="w-5/12 bg-black flex items-center justify-center flex-shrink-0">
+            {url
+              ? <img src={url} alt="selfie" className="h-full w-full object-cover" />
+              : <p className="text-gray-500 text-sm">Carregando…</p>
+            }
+          </div>
+          {/* Mapa */}
+          <div className="flex-1">
+            {registro.lat_registro
+              ? (
+                <MapContainer
+                  center={[registro.lat_registro, registro.lng_registro]}
+                  zoom={16}
+                  style={{ height: '100%', width: '100%' }}
+                  scrollWheelZoom={false}
+                >
+                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                  <Marker position={[registro.lat_registro, registro.lng_registro]}>
+                    <Popup>{registro.colaborador_nome}</Popup>
+                  </Marker>
+                </MapContainer>
+              )
+              : (
+                <div className="h-full flex items-center justify-center bg-gray-800">
+                  <p className="text-gray-500 text-sm">Sem localização registrada</p>
+                </div>
+              )
+            }
+          </div>
+        </div>
+
+        {/* Rodapé com metadados */}
+        <div className="px-5 py-2.5 border-t border-gray-800 flex gap-4 text-xs text-gray-500">
+          <span>Status: <span className="text-gray-300">{registro.status || '—'}</span></span>
+          {registro.distancia_metros != null && (
+            <span>Distância: <span className="text-gray-300">{registro.distancia_metros}m</span></span>
+          )}
+          {registro.local_nome && (
+            <span>Local: <span className="text-gray-300">{registro.local_nome}</span></span>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -64,7 +103,7 @@ function ModalAjuste({ registro, onClose, onSalvo }) {
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4" onClick={e => e.stopPropagation()}>
+      <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center">
           <h3 className="font-semibold text-gray-100">Ajuste de Registro</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-100 text-xl">×</button>
