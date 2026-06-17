@@ -221,6 +221,21 @@ async def get_foto_url(registro_id: str, rh=Depends(get_usuario_rh_atual)):
     return {"url": url}
 
 
+@router.delete("/registros/{registro_id}")
+async def excluir_registro(registro_id: str, rh=Depends(get_usuario_rh_atual)):
+    if rh.get("papel") != "admin":
+        raise HTTPException(403, "Apenas administradores podem excluir registros")
+    ids = _empresa_ids(rh)
+    res = sb.table("registros_ponto").select("empresa_id").eq("id", registro_id).single().execute()
+    if not res.data or res.data["empresa_id"] not in ids:
+        raise HTTPException(404, "Registro não encontrado")
+    try:
+        sb.table("registros_ponto").delete().eq("id", registro_id).execute()
+    except Exception as e:
+        raise HTTPException(400, f"Erro ao excluir registro: {e}")
+    return {"ok": True}
+
+
 @router.post("/registros/{registro_id}/ajuste")
 async def ajustar_registro(registro_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
@@ -307,6 +322,21 @@ async def listar_jornadas(
             "total_trabalhado": j.get("horas_trabalhadas"),
         })
     return result
+
+
+@router.delete("/jornadas/{jornada_id}")
+async def excluir_jornada(jornada_id: str, rh=Depends(get_usuario_rh_atual)):
+    if rh.get("papel") != "admin":
+        raise HTTPException(403, "Apenas administradores podem excluir jornadas")
+    ids = _empresa_ids(rh)
+    res = sb.table("jornadas_diarias").select("empresa_id").eq("id", jornada_id).single().execute()
+    if not res.data or res.data["empresa_id"] not in ids:
+        raise HTTPException(404, "Jornada não encontrada")
+    try:
+        sb.table("jornadas_diarias").delete().eq("id", jornada_id).execute()
+    except Exception as e:
+        raise HTTPException(400, f"Erro ao excluir jornada: {e}")
+    return {"ok": True}
 
 
 @router.get("/jornadas/exportar")

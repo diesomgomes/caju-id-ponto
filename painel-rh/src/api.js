@@ -77,6 +77,9 @@ export const getRegistros = (params = {}) => {
 }
 export const getFotoUrl = (registroId) => api(`/rh/registros/${registroId}/foto`)
 export const ajustarRegistro = (id, body) => api(`/rh/registros/${id}/ajuste`, { method: 'POST', body: JSON.stringify(body) })
+export const excluirRegistro = (id) => api(`/rh/registros/${id}`, { method: 'DELETE' })
+
+export const excluirJornada = (id) => api(`/rh/jornadas/${id}`, { method: 'DELETE' })
 
 export const getJornadas = (params = {}) => {
   const qs = new URLSearchParams(params).toString()

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getJornadas, getColaboradores, exportarJornadas } from '../api'
+import { getJornadas, getColaboradores, exportarJornadas, excluirJornada, getMe } from '../api'
 
 function fmtHoras(interval) {
   if (!interval) return '—'
@@ -14,8 +14,12 @@ export default function Jornada() {
   const [filtros, setFiltros] = useState({ colaborador_id: '', mes: new Date().toISOString().slice(0, 7) })
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [me, setMe] = useState(null)
 
-  useEffect(() => { getColaboradores().then(setColaboradores).catch(() => {}) }, [])
+  useEffect(() => {
+    getColaboradores().then(setColaboradores).catch(() => {})
+    getMe().then(setMe).catch(() => {})
+  }, [])
 
   async function buscar() {
     setLoading(true)
@@ -111,13 +115,14 @@ export default function Jornada() {
               <th className="px-4 py-3">Saída</th>
               <th className="px-4 py-3">Trabalhado</th>
               <th className="px-4 py-3">Saldo</th>
+              {me?.papel === 'admin' && <th className="px-4 py-3">Ações</th>}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">Carregando…</td></tr>
+              <tr><td colSpan={me?.papel === 'admin' ? 9 : 8} className="px-4 py-8 text-center text-gray-500">Carregando…</td></tr>
             ) : jornadas.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">Nenhum registro neste período.</td></tr>
+              <tr><td colSpan={me?.papel === 'admin' ? 9 : 8} className="px-4 py-8 text-center text-gray-500">Nenhum registro neste período.</td></tr>
             ) : jornadas.map((j, i) => {
               const saldoPositivo = j.saldo_dia && !j.saldo_dia.startsWith('-')
               return (
@@ -132,6 +137,14 @@ export default function Jornada() {
                   <td className={`px-4 py-3 font-medium ${saldoPositivo ? 'text-emerald-400' : 'text-red-400'}`}>
                     {fmtHoras(j.saldo_dia)}
                   </td>
+                  {me?.papel === 'admin' && (
+                    <td className="px-4 py-3">
+                      <button onClick={async () => {
+                        if (!confirm(`Excluir jornada de ${j.colaborador_nome} em ${new Date(j.data + 'T12:00:00').toLocaleDateString('pt-BR')}? Esta ação não pode ser desfeita.`)) return
+                        try { await excluirJornada(j.id); buscar() } catch (e) { alert(e.message) }
+                      }} className="text-red-400 hover:text-red-300 text-xs underline">Excluir</button>
+                    </td>
+                  )}
                 </tr>
               )
             })}
