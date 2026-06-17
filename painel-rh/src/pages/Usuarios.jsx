@@ -2,15 +2,18 @@ import { useEffect, useState } from 'react'
 import { getUsuarios, criarUsuario, atualizarUsuario, excluirUsuario, getEmpresas, getMe } from '../api'
 import Portal from '../components/Portal'
 
-const PAPEIS = [
+const PAPEIS_ADMIN = [
   { value: 'admin', label: 'Administrador' },
+  { value: 'rh', label: 'Gestão' },
+]
+const PAPEIS_GESTAO = [
   { value: 'rh', label: 'Gestão' },
 ]
 
 const VAZIO_CRIAR = { nome: '', email: '', senha: '', papel: 'rh', empresa_id: '' }
 const VAZIO_EDITAR = { nome: '', email: '', senha: '', papel: 'rh' }
 
-function ModalCriar({ onSalvar, onFechar, loading, erro, empresas }) {
+function ModalCriar({ onSalvar, onFechar, loading, erro, empresas, papeis }) {
   const [form, setForm] = useState(VAZIO_CRIAR)
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
@@ -49,7 +52,7 @@ function ModalCriar({ onSalvar, onFechar, loading, erro, empresas }) {
           <label className="text-xs text-gray-400 block mb-1">Perfil *</label>
           <select value={form.papel} onChange={e => set('papel', e.target.value)}
             className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm">
-            {PAPEIS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+            {papeis.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
           </select>
         </div>
 
@@ -66,7 +69,7 @@ function ModalCriar({ onSalvar, onFechar, loading, erro, empresas }) {
   )
 }
 
-function ModalEditar({ usuario, onSalvar, onFechar, loading, erro }) {
+function ModalEditar({ usuario, onSalvar, onFechar, loading, erro, papeis }) {
   const [form, setForm] = useState({
     nome: usuario.nome || '',
     email: usuario.email || '',
@@ -99,7 +102,7 @@ function ModalEditar({ usuario, onSalvar, onFechar, loading, erro }) {
           <label className="text-xs text-gray-400 block mb-1">Perfil</label>
           <select value={form.papel} onChange={e => set('papel', e.target.value)}
             className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm">
-            {PAPEIS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+            {papeis.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
           </select>
         </div>
 
@@ -227,6 +230,7 @@ export default function Usuarios() {
           loading={loading}
           erro={erro}
           empresas={empresas}
+          papeis={me?.papel === 'admin' ? PAPEIS_ADMIN : PAPEIS_GESTAO}
         />
       )}
 
@@ -237,6 +241,7 @@ export default function Usuarios() {
           onFechar={() => setModal(null)}
           loading={loading}
           erro={erro}
+          papeis={me?.papel === 'admin' ? PAPEIS_ADMIN : PAPEIS_GESTAO}
         />
       )}
     </div>
