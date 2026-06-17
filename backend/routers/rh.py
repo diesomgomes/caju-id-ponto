@@ -328,6 +328,75 @@ async def exportar_jornadas(
     raise HTTPException(400, "Formato não suportado. Use: csv")
 
 
+# ─── Modelos de Jornada ──────────────────────────────────────────────────────
+
+@router.get("/modelos-jornada")
+async def listar_modelos_jornada(empresa_id: Optional[str] = None, rh=Depends(get_usuario_rh_atual)):
+    ids = _empresa_ids(rh)
+    if not ids:
+        return []
+    filtro = [empresa_id] if empresa_id and empresa_id in ids else ids
+    res = sb.table("modelos_jornada").select("*").in_("empresa_id", filtro).eq("ativo", True).order("nome").execute()
+    return res.data or []
+
+
+@router.post("/modelos-jornada")
+async def criar_modelo_jornada(body: dict, rh=Depends(get_usuario_rh_atual)):
+    ids = _empresa_ids(rh)
+    empresa = body.get("empresa_id") or rh["empresa_id"]
+    if empresa not in ids:
+        raise HTTPException(403, "Sem acesso a esta empresa")
+    payload = {**body, "empresa_id": empresa, "ativo": True}
+    payload.pop("id", None); payload.pop("criado_em", None)
+    res = sb.table("modelos_jornada").insert(payload).execute()
+    if not res.data:
+        raise HTTPException(400, "Erro ao criar modelo de jornada")
+    return res.data[0]
+
+
+@router.put("/modelos-jornada/{modelo_id}")
+async def atualizar_modelo_jornada(modelo_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
+    ids = _empresa_ids(rh)
+    body.pop("id", None); body.pop("empresa_id", None); body.pop("criado_em", None)
+    res = sb.table("modelos_jornada").update(body).eq("id", modelo_id).in_("empresa_id", ids).execute()
+    if not res.data:
+        raise HTTPException(404, "Modelo de jornada não encontrado")
+    return res.data[0]
+
+
+@router.delete("/modelos-jornada/{modelo_id}")
+async def excluir_modelo_jornada(modelo_id: str, rh=Depends(get_usuario_rh_atual)):
+    ids = _empresa_ids(rh)
+    sb.table("modelos_jornada").update({"ativo": False}).eq("id", modelo_id).in_("empresa_id", ids).execute()
+    return {"ok": True}
+
+
+# ─── Locais por colaborador ───────────────────────────────────────────────────
+
+@router.get("/colaboradores/{colab_id}/locais")
+async def get_locais_colaborador(colab_id: str, rh=Depends(get_usuario_rh_atual)):
+    ids = _empresa_ids(rh)
+    colab = sb.table("colaboradores").select("id").eq("id", colab_id).in_("empresa_id", ids).execute()
+    if not colab.data:
+        raise HTTPException(404, "Colaborador não encontrado")
+    res = sb.table("colaborador_locais").select("local_id").eq("colaborador_id", colab_id).execute()
+    return [r["local_id"] for r in (res.data or [])]
+
+
+@router.put("/colaboradores/{colab_id}/locais")
+async def set_locais_colaborador(colab_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
+    ids = _empresa_ids(rh)
+    colab = sb.table("colaboradores").select("id").eq("id", colab_id).in_("empresa_id", ids).execute()
+    if not colab.data:
+        raise HTTPException(404, "Colaborador não encontrado")
+    local_ids: list = body.get("local_ids", [])
+    sb.table("colaborador_locais").delete().eq("colaborador_id", colab_id).execute()
+    if local_ids:
+        rows = [{"colaborador_id": colab_id, "local_id": lid} for lid in local_ids]
+        sb.table("colaborador_locais").insert(rows).execute()
+    return {"ok": True}
+
+
 # ─── Locais ──────────────────────────────────────────────────────────────────
 
 @router.get("/locais")

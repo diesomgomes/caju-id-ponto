@@ -8,6 +8,7 @@ import Jornada from './pages/Jornada'
 import Colaboradores from './pages/Colaboradores'
 import Locais from './pages/Locais'
 import Empresas from './pages/Empresas'
+import ModelosJornada from './pages/ModelosJornada'
 
 function RotaProtegida({ children }) {
   return getSessao() ? children : <Navigate to="/login" replace />
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="colaboradores" element={<Colaboradores />} />
           <Route path="locais" element={<Locais />} />
           <Route path="empresas" element={<Empresas />} />
+          <Route path="modelos-jornada" element={<ModelosJornada />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

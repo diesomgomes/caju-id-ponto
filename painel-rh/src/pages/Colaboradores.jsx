@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
-import { getColaboradores, criarColaborador, atualizarColaborador, excluirColaborador, getEmpresas } from '../api'
+import {
+  getColaboradores, criarColaborador, atualizarColaborador, excluirColaborador,
+  getEmpresas, getModelosJornada, getLocais, getLocaisColaborador, setLocaisColaborador,
+} from '../api'
 
 const DIAS_SEMANA = [
   { key: 'seg', label: 'Seg' },
@@ -20,7 +23,7 @@ const JORNADA_VAZIO = {
   dias_trabalho: 'seg,ter,qua,qui,sex',
 }
 
-function ModalColaborador({ titulo, dados, onChange, onSalvar, onFechar, loading, erro, empresas }) {
+function ModalColaborador({ titulo, dados, onChange, onSalvar, onFechar, loading, erro, empresas, modelos }) {
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onFechar}>
       <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4" onClick={e => e.stopPropagation()}>
@@ -35,6 +38,17 @@ function ModalColaborador({ titulo, dados, onChange, onSalvar, onFechar, loading
             className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm">
             <option value="">Selecione a empresa</option>
             {empresas.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label className="text-xs text-gray-400 block mb-1">Jornada de trabalho</label>
+          <select value={dados.modelo_jornada_id || ''} onChange={e => onChange('modelo_jornada_id', e.target.value)}
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm">
+            <option value="">Sem jornada definida</option>
+            {(modelos || []).filter(m => !dados.empresa_id || m.empresa_id === dados.empresa_id).map(m => (
+              <option key={m.id} value={m.id}>{m.nome}</option>
+            ))}
           </select>
         </div>
 
@@ -57,6 +71,79 @@ function ModalColaborador({ titulo, dados, onChange, onSalvar, onFechar, loading
           <button onClick={onSalvar} disabled={loading}
             className="flex-1 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold">
             {loading ? 'Salvando…' : 'Salvar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ModalLocais({ colaborador, todosLocais, onFechar, onSalvo }) {
+  const [selecionados, setSelecionados] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    getLocaisColaborador(colaborador.id)
+      .then(ids => setSelecionados(ids))
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [colaborador.id])
+
+  function toggle(id) {
+    setSelecionados(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
+  async function salvar() {
+    setSaving(true)
+    try {
+      await setLocaisColaborador(colaborador.id, selecionados)
+      onSalvo()
+      onFechar()
+    } catch (e) { alert(e.message) } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onFechar}>
+      <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="font-semibold text-gray-100">Locais Permitidos</h3>
+            <p className="text-xs text-gray-500 mt-0.5">{colaborador.nome}</p>
+          </div>
+          <button onClick={onFechar} className="text-gray-400 hover:text-gray-100 text-xl">×</button>
+        </div>
+
+        {loading ? (
+          <p className="text-gray-400 text-sm text-center py-4">Carregando...</p>
+        ) : todosLocais.length === 0 ? (
+          <p className="text-gray-500 text-sm text-center py-4">Nenhum local cadastrado para esta empresa.</p>
+        ) : (
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {todosLocais.map(l => (
+              <label key={l.id} className="flex items-center gap-3 p-3 rounded-lg bg-gray-800 hover:bg-gray-700 cursor-pointer">
+                <input type="checkbox" checked={selecionados.includes(l.id)} onChange={() => toggle(l.id)}
+                  className="w-4 h-4 accent-emerald-500" />
+                <div>
+                  <p className="text-sm text-gray-100">{l.nome}</p>
+                  <p className="text-xs text-gray-500">Raio: {l.raio_metros}m</p>
+                </div>
+              </label>
+            ))}
+          </div>
+        )}
+
+        <p className="text-xs text-gray-500">
+          {selecionados.length === 0
+            ? 'Sem locais selecionados: colaborador poderá registrar ponto em qualquer local da empresa.'
+            : `${selecionados.length} local(is) selecionado(s).`}
+        </p>
+
+        <div className="flex gap-3">
+          <button onClick={onFechar} className="flex-1 py-2 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700">Cancelar</button>
+          <button onClick={salvar} disabled={saving}
+            className="flex-1 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold">
+            {saving ? 'Salvando…' : 'Salvar'}
           </button>
         </div>
       </div>
@@ -268,14 +355,21 @@ function ModalJornada({ colaborador, onFechar, onSalvo }) {
 export default function Colaboradores() {
   const [lista, setLista] = useState([])
   const [empresas, setEmpresas] = useState([])
+  const [modelos, setModelos] = useState([])
+  const [todosLocais, setTodosLocais] = useState([])
   const [filtroEmpresa, setFiltroEmpresa] = useState('')
   const [modal, setModal] = useState(null)
   const [modalJornada, setModalJornada] = useState(null)
+  const [modalLocais, setModalLocais] = useState(null)
   const [form, setForm] = useState(CAMPOS_VAZIO)
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
 
-  useEffect(() => { getEmpresas().then(setEmpresas).catch(console.error) }, [])
+  useEffect(() => {
+    getEmpresas().then(setEmpresas).catch(console.error)
+    getModelosJornada().then(setModelos).catch(console.error)
+    getLocais().then(setTodosLocais).catch(console.error)
+  }, [])
 
   const carregar = (emp = filtroEmpresa) =>
     getColaboradores(emp ? { empresa_id: emp } : {}).then(setLista).catch(console.error)
@@ -365,6 +459,7 @@ export default function Colaboradores() {
                   <div className="flex gap-3">
                     <button onClick={() => abrirEditar(c)} className="text-blue-400 hover:text-blue-300 text-xs underline">Editar</button>
                     <button onClick={() => setModalJornada(c)} className="text-emerald-400 hover:text-emerald-300 text-xs underline">Jornada</button>
+                    <button onClick={() => setModalLocais(c)} className="text-yellow-400 hover:text-yellow-300 text-xs underline">Locais</button>
                     <button onClick={() => excluir(c.id)} className="text-red-400 hover:text-red-300 text-xs underline">Excluir</button>
                   </div>
                 </td>
@@ -384,6 +479,16 @@ export default function Colaboradores() {
           loading={loading}
           erro={erro}
           empresas={empresas}
+          modelos={modelos}
+        />
+      )}
+
+      {modalLocais && (
+        <ModalLocais
+          colaborador={modalLocais}
+          todosLocais={todosLocais.filter(l => l.empresa_id === modalLocais.empresa_id)}
+          onFechar={() => setModalLocais(null)}
+          onSalvo={carregar}
         />
       )}
 

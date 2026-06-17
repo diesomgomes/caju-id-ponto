@@ -85,7 +85,22 @@ export const exportarJornadas = async (params = {}) => {
   return res.blob()
 }
 
-export const getLocais = () => api('/rh/locais')
+export const getModelosJornada = (params = {}) => {
+  const qs = new URLSearchParams(params).toString()
+  return api(`/rh/modelos-jornada${qs ? '?' + qs : ''}`)
+}
+export const criarModeloJornada = (body) => api('/rh/modelos-jornada', { method: 'POST', body: JSON.stringify(body) })
+export const atualizarModeloJornada = (id, body) => api(`/rh/modelos-jornada/${id}`, { method: 'PUT', body: JSON.stringify(body) })
+export const excluirModeloJornada = (id) => api(`/rh/modelos-jornada/${id}`, { method: 'DELETE' })
+
+export const getLocaisColaborador = (colaboradorId) => api(`/rh/colaboradores/${colaboradorId}/locais`)
+export const setLocaisColaborador = (colaboradorId, local_ids) =>
+  api(`/rh/colaboradores/${colaboradorId}/locais`, { method: 'PUT', body: JSON.stringify({ local_ids }) })
+
+export const getLocais = (params = {}) => {
+  const qs = new URLSearchParams(params).toString()
+  return api(`/rh/locais${qs ? '?' + qs : ''}`)
+}
 export const criarLocal = (body) => api('/rh/locais', { method: 'POST', body: JSON.stringify(body) })
 export const atualizarLocal = (id, body) => api(`/rh/locais/${id}`, { method: 'PUT', body: JSON.stringify(body) })
 export const excluirLocal = (id) => api(`/rh/locais/${id}`, { method: 'DELETE' })

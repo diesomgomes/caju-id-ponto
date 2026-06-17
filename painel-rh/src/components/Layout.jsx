@@ -8,6 +8,7 @@ const nav = [
   { to: '/colaboradores', label: 'Colaboradores' },
   { to: '/locais', label: 'Locais' },
   { to: '/empresas', label: 'Empresas' },
+  { to: '/modelos-jornada', label: 'Tipos de Jornada' },
 ]
 
 export default function Layout() {
