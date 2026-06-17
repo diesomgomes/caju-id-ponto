@@ -34,7 +34,10 @@ async def criar_empresa(body: dict, rh=Depends(get_usuario_rh_atual)):
         raise HTTPException(403, "Apenas administradores podem criar empresas")
     payload = {k: v for k, v in body.items() if k not in ("id", "criado_em")}
     payload.setdefault("ativo", True)
-    res = sb.table("empresas").insert(payload).execute()
+    try:
+        res = sb.table("empresas").insert(payload).execute()
+    except Exception as e:
+        raise HTTPException(400, f"Erro ao criar empresa: {e}")
     if not res.data:
         raise HTTPException(400, "Erro ao criar empresa")
     return res.data[0]
@@ -45,7 +48,10 @@ async def atualizar_empresa(empresa_id: str, body: dict, rh=Depends(get_usuario_
     if empresa_id not in _empresa_ids(rh):
         raise HTTPException(403, "Sem acesso a esta empresa")
     body.pop("id", None); body.pop("criado_em", None)
-    res = sb.table("empresas").update(body).eq("id", empresa_id).execute()
+    try:
+        res = sb.table("empresas").update(body).eq("id", empresa_id).execute()
+    except Exception as e:
+        raise HTTPException(400, f"Erro ao atualizar empresa: {e}")
     if not res.data:
         raise HTTPException(404, "Empresa não encontrada")
     return res.data[0]
@@ -138,7 +144,10 @@ async def criar_colaborador(body: dict, rh=Depends(get_usuario_rh_atual)):
     if empresa not in ids:
         raise HTTPException(403, "Sem acesso a esta empresa")
     payload = {**body, "empresa_id": empresa, "ativo": True}
-    res = sb.table("colaboradores").insert(payload).execute()
+    try:
+        res = sb.table("colaboradores").insert(payload).execute()
+    except Exception as e:
+        raise HTTPException(400, f"Erro ao criar colaborador: {e}")
     if not res.data:
         raise HTTPException(400, "Erro ao criar colaborador")
     return res.data[0]
@@ -148,7 +157,10 @@ async def criar_colaborador(body: dict, rh=Depends(get_usuario_rh_atual)):
 async def atualizar_colaborador(colab_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     body.pop("id", None); body.pop("empresa_id", None)
-    res = sb.table("colaboradores").update(body).eq("id", colab_id).in_("empresa_id", ids).execute()
+    try:
+        res = sb.table("colaboradores").update(body).eq("id", colab_id).in_("empresa_id", ids).execute()
+    except Exception as e:
+        raise HTTPException(400, f"Erro ao atualizar colaborador: {e}")
     if not res.data:
         raise HTTPException(404, "Colaborador não encontrado")
     return res.data[0]
@@ -542,7 +554,10 @@ async def criar_local(body: dict, rh=Depends(get_usuario_rh_atual)):
     if empresa not in ids:
         raise HTTPException(403, "Sem acesso a esta empresa")
     payload = {**body, "empresa_id": empresa}
-    res = sb.table("locais_permitidos").insert(payload).execute()
+    try:
+        res = sb.table("locais_permitidos").insert(payload).execute()
+    except Exception as e:
+        raise HTTPException(400, f"Erro ao criar local: {e}")
     if not res.data:
         raise HTTPException(400, "Erro ao criar local")
     return res.data[0]
@@ -552,7 +567,10 @@ async def criar_local(body: dict, rh=Depends(get_usuario_rh_atual)):
 async def atualizar_local(local_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     body.pop("id", None); body.pop("empresa_id", None)
-    res = sb.table("locais_permitidos").update(body).eq("id", local_id).in_("empresa_id", ids).execute()
+    try:
+        res = sb.table("locais_permitidos").update(body).eq("id", local_id).in_("empresa_id", ids).execute()
+    except Exception as e:
+        raise HTTPException(400, f"Erro ao atualizar local: {e}")
     if not res.data:
         raise HTTPException(404, "Local não encontrado")
     return res.data[0]
