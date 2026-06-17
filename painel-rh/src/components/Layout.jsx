@@ -9,6 +9,7 @@ const nav = [
   { to: '/locais', label: 'Locais' },
   { to: '/empresas', label: 'Empresas' },
   { to: '/modelos-jornada', label: 'Tipos de Jornada' },
+  { to: '/usuarios', label: 'Usuários RH' },
 ]
 
 export default function Layout() {

@@ -1,9 +1,26 @@
+import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from apscheduler.schedulers.background import BackgroundScheduler
 
 from routers import ponto, rh
+from services.cleanup import limpar_fotos_antigas
 
-app = FastAPI(title="Ponto Eletrônico API", version="0.1.0")
+logging.basicConfig(level=logging.INFO)
+
+scheduler = BackgroundScheduler()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    scheduler.add_job(limpar_fotos_antigas, "cron", hour=3, minute=0, id="cleanup_fotos")
+    scheduler.start()
+    yield
+    scheduler.shutdown()
+
+
+app = FastAPI(title="Ponto Eletrônico API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

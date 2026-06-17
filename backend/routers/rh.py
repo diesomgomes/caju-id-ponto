@@ -328,6 +328,109 @@ async def exportar_jornadas(
     raise HTTPException(400, "Formato não suportado. Use: csv")
 
 
+# ─── Usuários RH ─────────────────────────────────────────────────────────────
+
+@router.get("/usuarios")
+async def listar_usuarios(rh=Depends(get_usuario_rh_atual)):
+    ids = _empresa_ids(rh)
+    if not ids:
+        return []
+    res = sb.table("usuarios_rh").select("id, nome, email, papel, empresa_id, auth_user_id").in_("empresa_id", ids).order("nome").execute()
+    return res.data or []
+
+
+@router.post("/usuarios")
+async def criar_usuario(body: dict, rh=Depends(get_usuario_rh_atual)):
+    if rh.get("papel") != "admin":
+        raise HTTPException(403, "Apenas administradores podem criar usuários RH")
+    ids = _empresa_ids(rh)
+    empresa = body.get("empresa_id") or rh["empresa_id"]
+    if empresa not in ids:
+        raise HTTPException(403, "Sem acesso a esta empresa")
+
+    email = body.get("email", "").strip()
+    senha = body.get("senha", "").strip()
+    nome = body.get("nome", "").strip()
+    papel = body.get("papel", "rh")
+
+    if not email or not senha or not nome:
+        raise HTTPException(400, "Nome, email e senha são obrigatórios")
+
+    try:
+        auth_res = sb.auth.admin.create_user({
+            "email": email,
+            "password": senha,
+            "email_confirm": True,
+        })
+        auth_user_id = auth_res.user.id
+    except Exception as e:
+        raise HTTPException(400, f"Erro ao criar usuário: {e}")
+
+    res = sb.table("usuarios_rh").insert({
+        "empresa_id": empresa,
+        "auth_user_id": auth_user_id,
+        "nome": nome,
+        "email": email,
+        "papel": papel,
+    }).execute()
+
+    if not res.data:
+        sb.auth.admin.delete_user(auth_user_id)
+        raise HTTPException(400, "Erro ao vincular usuário RH")
+
+    return res.data[0]
+
+
+@router.put("/usuarios/{usuario_id}")
+async def atualizar_usuario(usuario_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
+    ids = _empresa_ids(rh)
+    res = sb.table("usuarios_rh").select("auth_user_id, empresa_id").eq("id", usuario_id).single().execute()
+    if not res.data or res.data["empresa_id"] not in ids:
+        raise HTTPException(404, "Usuário não encontrado")
+
+    auth_user_id = res.data["auth_user_id"]
+    auth_patch = {}
+    if body.get("email"):
+        auth_patch["email"] = body["email"]
+    if body.get("senha"):
+        auth_patch["password"] = body["senha"]
+    if auth_patch and auth_user_id:
+        try:
+            sb.auth.admin.update_user_by_id(auth_user_id, auth_patch)
+        except Exception as e:
+            raise HTTPException(400, f"Erro ao atualizar auth: {e}")
+
+    db_patch = {}
+    for campo in ("nome", "email", "papel"):
+        if body.get(campo):
+            db_patch[campo] = body[campo]
+    if db_patch:
+        sb.table("usuarios_rh").update(db_patch).eq("id", usuario_id).execute()
+
+    return {"ok": True}
+
+
+@router.delete("/usuarios/{usuario_id}")
+async def excluir_usuario(usuario_id: str, rh=Depends(get_usuario_rh_atual)):
+    if rh.get("papel") != "admin":
+        raise HTTPException(403, "Apenas administradores podem excluir usuários")
+    if rh["id"] == usuario_id:
+        raise HTTPException(400, "Não é possível excluir o próprio usuário")
+    ids = _empresa_ids(rh)
+    res = sb.table("usuarios_rh").select("auth_user_id, empresa_id").eq("id", usuario_id).single().execute()
+    if not res.data or res.data["empresa_id"] not in ids:
+        raise HTTPException(404, "Usuário não encontrado")
+
+    auth_user_id = res.data.get("auth_user_id")
+    sb.table("usuarios_rh").delete().eq("id", usuario_id).execute()
+    if auth_user_id:
+        try:
+            sb.auth.admin.delete_user(auth_user_id)
+        except Exception:
+            pass
+    return {"ok": True}
+
+
 # ─── Modelos de Jornada ──────────────────────────────────────────────────────
 
 @router.get("/modelos-jornada")

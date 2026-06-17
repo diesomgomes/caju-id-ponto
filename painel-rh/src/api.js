@@ -50,6 +50,11 @@ async function api(path, opts = {}) {
 }
 
 export const getDashboard = () => api('/rh/dashboard')
+export const getUsuarios = () => api('/rh/usuarios')
+export const criarUsuario = (body) => api('/rh/usuarios', { method: 'POST', body: JSON.stringify(body) })
+export const atualizarUsuario = (id, body) => api(`/rh/usuarios/${id}`, { method: 'PUT', body: JSON.stringify(body) })
+export const excluirUsuario = (id) => api(`/rh/usuarios/${id}`, { method: 'DELETE' })
+
 export const getEmpresas = () => api('/rh/empresas')
 export const criarEmpresa = (body) => api('/rh/empresas', { method: 'POST', body: JSON.stringify(body) })
 export const atualizarEmpresa = (id, body) => api(`/rh/empresas/${id}`, { method: 'PUT', body: JSON.stringify(body) })
