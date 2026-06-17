@@ -54,13 +54,40 @@ function ModalColaborador({ titulo, dados, onChange, onSalvar, onFechar, loading
   )
 }
 
+function toMins(hhmm) {
+  if (!hhmm) return null
+  const [h, m] = hhmm.split(':').map(Number)
+  return h * 60 + m
+}
+
+function minsToInterval(mins) {
+  if (mins <= 0) return '00:00:00'
+  const h = Math.floor(mins / 60).toString().padStart(2, '0')
+  const m = (mins % 60).toString().padStart(2, '0')
+  return `${h}:${m}:00`
+}
+
+function calcularCargaLiquida(entrada, saida, inicioAlmoco, fimAlmoco) {
+  const eM = toMins(entrada)
+  const sM = toMins(saida)
+  if (eM === null || sM === null || sM <= eM) return null
+  let trabalho = sM - eM
+  const iA = toMins(inicioAlmoco)
+  const fA = toMins(fimAlmoco)
+  if (iA !== null && fA !== null && fA > iA) trabalho -= (fA - iA)
+  return minsToInterval(trabalho)
+}
+
 function ModalJornada({ colaborador, onFechar, onSalvo }) {
   const diasAtivos = (colaborador.dias_trabalho || 'seg,ter,qua,qui,sex').split(',')
   const [form, setForm] = useState({
-    hora_entrada_esperada: colaborador.hora_entrada_esperada?.slice(0, 5) || '08:00',
-    hora_saida_esperada: colaborador.hora_saida_esperada?.slice(0, 5) || '17:00',
-    carga_horaria_diaria: colaborador.carga_horaria_diaria || '08:00:00',
+    hora_entrada_esperada:  colaborador.hora_entrada_esperada?.slice(0, 5)  || '08:00',
+    hora_saida_esperada:    colaborador.hora_saida_esperada?.slice(0, 5)    || '17:00',
+    hora_inicio_almoco:     colaborador.hora_inicio_almoco?.slice(0, 5)     || '12:00',
+    hora_fim_almoco:        colaborador.hora_fim_almoco?.slice(0, 5)        || '13:00',
+    carga_horaria_diaria:   colaborador.carga_horaria_diaria                || '08:00:00',
     dias: diasAtivos,
+    almoco_ativo: !!(colaborador.hora_inicio_almoco),
   })
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
@@ -72,39 +99,38 @@ function ModalJornada({ colaborador, onFechar, onSalvo }) {
     }))
   }
 
-  // Calcula carga horária automaticamente se entrada e saída estiverem preenchidas
-  function calcularCarga(entrada, saida) {
-    try {
-      const [eh, em] = entrada.split(':').map(Number)
-      const [sh, sm] = saida.split(':').map(Number)
-      const mins = (sh * 60 + sm) - (eh * 60 + em)
-      if (mins > 0) {
-        const h = Math.floor(mins / 60).toString().padStart(2, '0')
-        const m = (mins % 60).toString().padStart(2, '0')
-        return `${h}:${m}:00`
-      }
-    } catch { }
-    return form.carga_horaria_diaria
+  function recalcular(patch) {
+    const next = { ...form, ...patch }
+    const carga = calcularCargaLiquida(
+      next.hora_entrada_esperada,
+      next.hora_saida_esperada,
+      next.almoco_ativo ? next.hora_inicio_almoco : null,
+      next.almoco_ativo ? next.hora_fim_almoco : null,
+    )
+    return { ...next, carga_horaria_diaria: carga || next.carga_horaria_diaria }
   }
 
-  function handleEntrada(val) {
-    const carga = calcularCarga(val, form.hora_saida_esperada)
-    setForm(f => ({ ...f, hora_entrada_esperada: val, carga_horaria_diaria: carga }))
-  }
+  function set(key, val) { setForm(f => recalcular({ [key]: val })) }
 
-  function handleSaida(val) {
-    const carga = calcularCarga(form.hora_entrada_esperada, val)
-    setForm(f => ({ ...f, hora_saida_esperada: val, carga_horaria_diaria: carga }))
-  }
+  const duracaoAlmoco = (() => {
+    if (!form.almoco_ativo) return null
+    const iA = toMins(form.hora_inicio_almoco)
+    const fA = toMins(form.hora_fim_almoco)
+    if (iA === null || fA === null || fA <= iA) return null
+    const mins = fA - iA
+    return `${Math.floor(mins / 60)}h${mins % 60 > 0 ? `${mins % 60}min` : ''}`
+  })()
 
   async function salvar() {
     setErro(''); setLoading(true)
     try {
       await atualizarColaborador(colaborador.id, {
         hora_entrada_esperada: form.hora_entrada_esperada + ':00',
-        hora_saida_esperada: form.hora_saida_esperada + ':00',
-        carga_horaria_diaria: form.carga_horaria_diaria,
-        dias_trabalho: form.dias.join(','),
+        hora_saida_esperada:   form.hora_saida_esperada + ':00',
+        hora_inicio_almoco:    form.almoco_ativo ? form.hora_inicio_almoco + ':00' : null,
+        hora_fim_almoco:       form.almoco_ativo ? form.hora_fim_almoco + ':00'    : null,
+        carga_horaria_diaria:  form.carga_horaria_diaria,
+        dias_trabalho:         form.dias.join(','),
       })
       onSalvo()
       onFechar()
@@ -130,68 +156,89 @@ function ModalJornada({ colaborador, onFechar, onSalvo }) {
           <label className="text-xs text-gray-400 block mb-2">Dias de trabalho</label>
           <div className="flex gap-2 flex-wrap">
             {DIAS_SEMANA.map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => toggleDia(key)}
+              <button key={key} onClick={() => toggleDia(key)}
                 className={`w-10 h-10 rounded-lg text-sm font-semibold transition-colors ${
-                  form.dias.includes(key)
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                }`}
-              >
+                  form.dias.includes(key) ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                }`}>
                 {label}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Horários */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs text-gray-400 block mb-1">Entrada esperada</label>
-            <input
-              type="time"
-              value={form.hora_entrada_esperada}
-              onChange={e => handleEntrada(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-gray-400 block mb-1">Saída esperada</label>
-            <input
-              type="time"
-              value={form.hora_saida_esperada}
-              onChange={e => handleSaida(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm"
-            />
+        {/* Horários entrada/saída */}
+        <div>
+          <label className="text-xs text-gray-400 block mb-2">Horário de trabalho</label>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Entrada</label>
+              <input type="time" value={form.hora_entrada_esperada}
+                onChange={e => set('hora_entrada_esperada', e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Saída</label>
+              <input type="time" value={form.hora_saida_esperada}
+                onChange={e => set('hora_saida_esperada', e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+            </div>
           </div>
         </div>
 
-        {/* Carga horária calculada */}
+        {/* Almoço */}
+        <div className="border border-gray-800 rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-sm text-gray-300 font-medium">Intervalo de almoço</label>
+            <button onClick={() => setForm(f => recalcular({ almoco_ativo: !f.almoco_ativo }))}
+              className={`relative w-11 h-6 rounded-full transition-colors ${form.almoco_ativo ? 'bg-emerald-600' : 'bg-gray-700'}`}>
+              <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${form.almoco_ativo ? 'left-6' : 'left-1'}`} />
+            </button>
+          </div>
+          {form.almoco_ativo && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Início</label>
+                <input type="time" value={form.hora_inicio_almoco}
+                  onChange={e => set('hora_inicio_almoco', e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Fim</label>
+                <input type="time" value={form.hora_fim_almoco}
+                  onChange={e => set('hora_fim_almoco', e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+              </div>
+            </div>
+          )}
+          {form.almoco_ativo && duracaoAlmoco && (
+            <p className="text-xs text-gray-500">Duração: <span className="text-yellow-400">{duracaoAlmoco}</span></p>
+          )}
+        </div>
+
+        {/* Carga horária líquida */}
         <div className="bg-gray-800/60 rounded-lg p-3 flex justify-between items-center">
-          <span className="text-sm text-gray-400">Carga horária diária</span>
+          <div>
+            <p className="text-xs text-gray-500">Carga horária líquida</p>
+            <p className="text-xs text-gray-600 mt-0.5">
+              {form.almoco_ativo && duracaoAlmoco ? `(descontando ${duracaoAlmoco} de almoço)` : '(sem desconto de almoço)'}
+            </p>
+          </div>
           <div className="flex items-center gap-2">
-            <span className="text-emerald-400 font-bold text-lg">
-              {form.carga_horaria_diaria.slice(0, 5)}
-            </span>
-            <input
-              type="text"
-              value={form.carga_horaria_diaria}
+            <span className="text-emerald-400 font-bold text-xl">{form.carga_horaria_diaria.slice(0, 5)}</span>
+            <input type="text" value={form.carga_horaria_diaria}
               onChange={e => setForm(f => ({ ...f, carga_horaria_diaria: e.target.value }))}
               className="w-24 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-gray-100 text-xs text-center"
-              placeholder="08:00:00"
-            />
+              placeholder="08:00:00" />
           </div>
         </div>
 
         {/* Resumo */}
         <div className="bg-emerald-900/20 border border-emerald-800/40 rounded-lg p-3 text-xs text-gray-400">
-          <p>
-            <span className="text-emerald-400 font-medium">Resumo: </span>
-            {diasOrdenados.map(d => DIAS_SEMANA.find(x => x.key === d)?.label).join(', ')}{' '}
-            · {form.hora_entrada_esperada} às {form.hora_saida_esperada}
-            · {form.carga_horaria_diaria.slice(0, 5)}h/dia
-          </p>
+          <span className="text-emerald-400 font-medium">Resumo: </span>
+          {diasOrdenados.map(d => DIAS_SEMANA.find(x => x.key === d)?.label).join(', ')}
+          {' · '}{form.hora_entrada_esperada}–{form.hora_saida_esperada}
+          {form.almoco_ativo && duracaoAlmoco && ` · almoço ${form.hora_inicio_almoco}–${form.hora_fim_almoco}`}
+          {' · '}<span className="text-emerald-400">{form.carga_horaria_diaria.slice(0, 5)}h líquidas/dia</span>
         </div>
 
         {erro && <p className="text-red-400 text-sm">{erro}</p>}
