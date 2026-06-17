@@ -14,7 +14,7 @@ const DIAS_SEMANA = [
   { key: 'dom', label: 'Dom' },
 ]
 
-const CAMPOS_VAZIO = { nome: '', cpf: '', email: '', cargo: '', departamento: '', empresa_id: '', carga_horaria_diaria: '08:00:00' }
+const CAMPOS_VAZIO = { nome: '', cpf: '', pis: '', email: '', cargo: '', departamento: '', empresa_id: '', carga_horaria_diaria: '08:00:00' }
 
 const JORNADA_VAZIO = {
   hora_entrada_esperada: '08:00',
@@ -55,6 +55,7 @@ function ModalColaborador({ titulo, dados, onChange, onSalvar, onFechar, loading
         {[
           { key: 'nome', label: 'Nome completo', type: 'text' },
           { key: 'cpf', label: 'CPF', type: 'text' },
+          { key: 'pis', label: 'PIS/PASEP', type: 'text' },
           { key: 'email', label: 'Email', type: 'email' },
           { key: 'cargo', label: 'Cargo', type: 'text' },
           { key: 'departamento', label: 'Departamento', type: 'text' },

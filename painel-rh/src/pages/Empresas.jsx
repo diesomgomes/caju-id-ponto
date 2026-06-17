@@ -1,26 +1,68 @@
 import { useEffect, useState } from 'react'
 import { getEmpresas, criarEmpresa, atualizarEmpresa, excluirEmpresa } from '../api'
 
-const VAZIO = { nome: '', cnpj: '' }
+const VAZIO = { nome: '', cnpj: '', cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', estado: '' }
 
 function ModalEmpresa({ titulo, dados, onChange, onSalvar, onFechar, loading, erro }) {
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onFechar}>
-      <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4" onClick={e => e.stopPropagation()}>
+      <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4 overflow-y-auto max-h-[90vh]" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center">
           <h3 className="font-semibold text-gray-100">{titulo}</h3>
           <button onClick={onFechar} className="text-gray-400 hover:text-gray-100 text-xl">×</button>
         </div>
+
         {[
-          { key: 'nome', label: 'Razão Social', type: 'text', required: true },
-          { key: 'cnpj', label: 'CNPJ', type: 'text', required: true },
-        ].map(({ key, label, type, required }) => (
+          { key: 'nome', label: 'Razão Social *', type: 'text' },
+          { key: 'cnpj', label: 'CNPJ *', type: 'text' },
+        ].map(({ key, label, type }) => (
           <div key={key}>
-            <label className="text-xs text-gray-400 block mb-1">{label}{required && ' *'}</label>
+            <label className="text-xs text-gray-400 block mb-1">{label}</label>
             <input type={type} value={dados[key] || ''} onChange={e => onChange(key, e.target.value)}
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
           </div>
         ))}
+
+        <p className="text-xs text-gray-500 uppercase tracking-wider pt-1">Endereço</p>
+
+        <div className="flex gap-3">
+          <div className="w-32">
+            <label className="text-xs text-gray-400 block mb-1">CEP</label>
+            <input type="text" value={dados.cep || ''} onChange={e => onChange('cep', e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+          </div>
+          <div className="flex-1">
+            <label className="text-xs text-gray-400 block mb-1">Logradouro</label>
+            <input type="text" value={dados.logradouro || ''} onChange={e => onChange('logradouro', e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <div className="w-24">
+            <label className="text-xs text-gray-400 block mb-1">Número</label>
+            <input type="text" value={dados.numero || ''} onChange={e => onChange('numero', e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+          </div>
+          <div className="flex-1">
+            <label className="text-xs text-gray-400 block mb-1">Complemento</label>
+            <input type="text" value={dados.complemento || ''} onChange={e => onChange('complemento', e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+          </div>
+        </div>
+
+        {[
+          { key: 'bairro', label: 'Bairro' },
+          { key: 'cidade', label: 'Cidade' },
+          { key: 'estado', label: 'Estado (UF)' },
+        ].map(({ key, label }) => (
+          <div key={key}>
+            <label className="text-xs text-gray-400 block mb-1">{label}</label>
+            <input type="text" value={dados[key] || ''} onChange={e => onChange(key, e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+          </div>
+        ))}
+
         {erro && <p className="text-red-400 text-sm">{erro}</p>}
         <div className="flex gap-3">
           <button onClick={onFechar} className="flex-1 py-2 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700">Cancelar</button>

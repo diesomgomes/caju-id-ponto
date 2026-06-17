@@ -87,3 +87,11 @@ export async function getSaldo() {
   if (!res.ok) throw new Error("Erro ao buscar saldo");
   return res.json();
 }
+
+export async function getPerfil() {
+  const res = await fetch(`${API_URL}/ponto/perfil`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) throw new Error("Erro ao buscar perfil");
+  return res.json();
+}

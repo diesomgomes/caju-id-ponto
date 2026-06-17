@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#10b981" />
+  <title>Comprovante — CAJU ID</title>
+  <script src="/config.js"></script>
+  <link rel="manifest" href="/manifest.json" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background-color: #111827; color: #f9fafb; font-family: system-ui, sans-serif; }
+    .hidden { display: none !important; }
+    @media print {
+      body { background: #fff !important; color: #000 !important; }
+      .no-print { display: none !important; }
+      .print-card { background: #fff !important; border: 1px solid #ccc !important; color: #000 !important; }
+      .print-header { background: #fff !important; color: #000 !important; border-bottom: 2px solid #000 !important; }
+      .print-label { color: #555 !important; }
+      .print-value { color: #000 !important; }
+      .print-table th { background: #f3f4f6 !important; color: #000 !important; border: 1px solid #ccc !important; }
+      .print-table td { border: 1px solid #ddd !important; color: #000 !important; }
+      .print-saldo-pos { color: #166534 !important; }
+      .print-saldo-neg { color: #991b1b !important; }
+    }
+  </style>
+</head>
+<body class="max-w-2xl mx-auto flex flex-col min-h-screen">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between px-5 pt-10 pb-4 border-b border-gray-800 no-print">
+    <div class="flex items-center gap-3">
+      <a href="/" class="text-gray-400 text-2xl leading-none">‹</a>
+      <h1 class="font-bold text-white text-xl">📄 Comprovante</h1>
+    </div>
+    <button onclick="window.print()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-4 py-2 rounded-lg">
+      Imprimir
+    </button>
+  </div>
+
+  <!-- Seletor de mês -->
+  <div class="flex items-center justify-between px-5 py-4 border-b border-gray-800 no-print">
+    <button id="btn-mes-ant" class="text-gray-400 hover:text-white text-xl px-2">‹</button>
+    <p id="label-mes" class="font-semibold text-white capitalize"></p>
+    <button id="btn-mes-prox" class="text-gray-400 hover:text-white text-xl px-2">›</button>
+  </div>
+
+  <!-- Conteúdo do comprovante -->
+  <div id="conteudo" class="flex-1 px-5 py-6 space-y-5">
+    <p class="text-center text-gray-500 py-10">Carregando...</p>
+  </div>
+
+  <!-- Abas -->
+  <div class="flex border-t border-gray-800 mt-auto no-print">
+    <a href="/" class="flex-1 py-3 text-center text-gray-400 hover:text-white text-xs">🏠 Início</a>
+    <a href="/historico.html" class="flex-1 py-3 text-center text-gray-400 hover:text-white text-xs">📋 Meu Ponto</a>
+    <a href="/saldo.html" class="flex-1 py-3 text-center text-gray-400 hover:text-white text-xs">⏱ Saldo</a>
+    <span class="flex-1 py-3 text-center text-emerald-400 text-xs font-bold">📄 Comprovante</span>
+  </div>
+
+  <script type="module">
+    import { getToken, limparSessao, getPerfil, getHistorico } from "./src/api.js";
+
+    if (!getToken()) { location.href = "/"; }
+
+    let mesAtual = new Date().toISOString().slice(0, 7);
+
+    function formatarMes(ym) {
+      const [y, m] = ym.split("-");
+      return new Date(y, m - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    }
+
+    function navMes(delta) {
+      const [y, m] = mesAtual.split("-").map(Number);
+      const d = new Date(y, m - 1 + delta, 1);
+      mesAtual = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      carregar();
+    }
+
+    function hora(ts) {
+      return new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function enderecoFormatado(e) {
+      const partes = [];
+      if (e.logradouro) {
+        let linha = e.logradouro;
+        if (e.numero) linha += `, ${e.numero}`;
+        if (e.complemento) linha += ` — ${e.complemento}`;
+        partes.push(linha);
+      }
+      if (e.bairro) partes.push(e.bairro);
+      const cidadeEstado = [e.cidade, e.estado].filter(Boolean).join(" — ");
+      if (cidadeEstado) partes.push(cidadeEstado);
+      if (e.cep) partes.push(`CEP: ${e.cep}`);
+      return partes.join(", ");
+    }
+
+    const TIPO_INFO = {
+      entrada:        { label: "Entrada",        emoji: "🟢" },
+      saida_almoco:   { label: "Saída almoço",   emoji: "🟡" },
+      retorno_almoco: { label: "Retorno almoço", emoji: "🔵" },
+      saida:          { label: "Saída",          emoji: "🔴" },
+    };
+
+    function saldoCor(s) {
+      if (!s) return "";
+      return s.startsWith("-") ? "text-red-400 print-saldo-neg" : "text-emerald-400 print-saldo-pos";
+    }
+    function saldoSinal(s) {
+      if (!s) return "—";
+      return (s.startsWith("-") ? "" : "+") + s;
+    }
+
+    async function carregar() {
+      document.getElementById("label-mes").textContent = formatarMes(mesAtual);
+      const conteudo = document.getElementById("conteudo");
+      conteudo.innerHTML = `<p class="text-center text-gray-500 py-10">Carregando...</p>`;
+
+      try {
+        const [perfil, historico] = await Promise.all([getPerfil(), getHistorico(mesAtual)]);
+        const { colaborador: c, empresa: e } = perfil;
+        const dias = historico.dias || [];
+
+        const endereco = enderecoFormatado(e);
+        const geradoEm = new Date().toLocaleDateString("pt-BR", {
+          day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit"
+        });
+
+        // Totais
+        function parseHHMM(str) {
+          if (!str) return 0;
+          const neg = str.startsWith("-");
+          const [h, m] = str.replace("-", "").split(":");
+          const min = parseInt(h) * 60 + parseInt(m || 0);
+          return neg ? -min : min;
+        }
+        function fmtMin(totalMin) {
+          const neg = totalMin < 0;
+          const abs = Math.abs(totalMin);
+          const h = Math.floor(abs / 60);
+          const m = abs % 60;
+          return `${neg ? "-" : "+"}${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
+        }
+
+        const totalSaldoMin = dias.reduce((acc, d) => acc + parseHHMM(d.saldo_dia), 0);
+        const totalTrabalhadoMin = dias.reduce((acc, d) => acc + parseHHMM(d.horas_trabalhadas), 0);
+
+        const tabelaLinhas = dias.map(dia => {
+          const batidasStr = (dia.registros || []).map(r =>
+            `<span class="inline-block mr-2 whitespace-nowrap">${TIPO_INFO[r.tipo]?.emoji || ""} ${hora(r.registrado_em)}</span>`
+          ).join("");
+
+          const saldoClass = saldoCor(dia.saldo_dia);
+          return `
+            <tr class="border-b border-gray-700/50 text-sm">
+              <td class="px-3 py-2 text-gray-300 whitespace-nowrap print-value">${dia.data_br}</td>
+              <td class="px-3 py-2 text-gray-400 print-value">${batidasStr || '<span class="text-red-400">Sem registro</span>'}</td>
+              <td class="px-3 py-2 text-gray-300 text-center font-mono print-value">${dia.horas_trabalhadas?.slice(0,5) || "—"}</td>
+              <td class="px-3 py-2 font-mono font-bold text-center ${saldoClass} print-value">${saldoSinal(dia.saldo_dia?.slice(0,5) || null)}</td>
+            </tr>`;
+        }).join("") || `<tr><td colspan="4" class="px-3 py-6 text-center text-gray-500">Nenhum registro neste mês.</td></tr>`;
+
+        conteudo.innerHTML = `
+          <!-- Cabeçalho do comprovante -->
+          <div class="print-card bg-gray-900 rounded-xl border border-gray-800 p-5">
+            <div class="print-header border-b border-gray-700 pb-4 mb-4">
+              <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Comprovante de Registros de Ponto</p>
+              <p class="text-lg font-bold text-white">${e.nome || "—"}</p>
+              ${e.cnpj ? `<p class="text-sm text-gray-400">CNPJ: ${e.cnpj}</p>` : ""}
+              ${endereco ? `<p class="text-xs text-gray-500 mt-1">${endereco}</p>` : ""}
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p class="print-label text-xs text-gray-500">Colaborador</p>
+                <p class="print-value font-semibold text-gray-100">${c.nome || "—"}</p>
+              </div>
+              <div>
+                <p class="print-label text-xs text-gray-500">Cargo</p>
+                <p class="print-value text-gray-300">${c.cargo || "—"}</p>
+              </div>
+              <div>
+                <p class="print-label text-xs text-gray-500">CPF</p>
+                <p class="print-value font-mono text-gray-300">${c.cpf || "—"}</p>
+              </div>
+              <div>
+                <p class="print-label text-xs text-gray-500">PIS/PASEP</p>
+                <p class="print-value font-mono text-gray-300">${c.pis || "—"}</p>
+              </div>
+              ${c.departamento ? `<div class="col-span-2">
+                <p class="print-label text-xs text-gray-500">Departamento</p>
+                <p class="print-value text-gray-300">${c.departamento}</p>
+              </div>` : ""}
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-gray-700 flex justify-between items-center text-xs text-gray-500">
+              <span>Competência: <strong class="text-gray-300 capitalize">${formatarMes(mesAtual)}</strong></span>
+              <span>Gerado em ${geradoEm}</span>
+            </div>
+          </div>
+
+          <!-- Resumo do mês -->
+          <div class="grid grid-cols-2 gap-3">
+            <div class="print-card bg-gray-900 rounded-xl border border-gray-800 p-4 text-center">
+              <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Total trabalhado</p>
+              <p class="text-xl font-bold font-mono text-white">${fmtMin(totalTrabalhadoMin).replace("+","")}</p>
+            </div>
+            <div class="print-card bg-gray-900 rounded-xl border border-gray-800 p-4 text-center">
+              <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Saldo do mês</p>
+              <p class="text-xl font-bold font-mono ${totalSaldoMin >= 0 ? 'text-emerald-400' : 'text-red-400'}">${fmtMin(totalSaldoMin)}</p>
+            </div>
+          </div>
+
+          <!-- Tabela de registros -->
+          <div class="print-card bg-gray-900 rounded-xl border border-gray-800 overflow-auto">
+            <table class="w-full text-sm print-table">
+              <thead>
+                <tr class="border-b border-gray-700 text-left text-gray-400 text-xs uppercase tracking-wider">
+                  <th class="px-3 py-3">Data</th>
+                  <th class="px-3 py-3">Registros</th>
+                  <th class="px-3 py-3 text-center">Trabalhado</th>
+                  <th class="px-3 py-3 text-center">Saldo</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tabelaLinhas}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Rodapé -->
+          <div class="text-center text-xs text-gray-600 pb-4">
+            Documento gerado pelo sistema CAJU ID — Ponto Eletrônico
+          </div>
+        `;
+      } catch (err) {
+        conteudo.innerHTML = `<p class="text-center text-red-400 py-10">${err.message}</p>`;
+      }
+    }
+
+    document.getElementById("btn-mes-ant").addEventListener("click", () => navMes(-1));
+    document.getElementById("btn-mes-prox").addEventListener("click", () => navMes(1));
+    carregar();
+  </script>
+</body>
+</html>

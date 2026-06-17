@@ -277,6 +277,28 @@ async def historico_ponto(mes: str, colaborador: dict = Depends(get_colaborador_
     return {"mes": mes, "dias": resultado}
 
 
+@router.get("/perfil")
+async def get_perfil(colaborador: dict = Depends(get_colaborador_atual)):
+    empresa = (
+        supabase.table("empresas")
+        .select("*")
+        .eq("id", colaborador["empresa_id"])
+        .single()
+        .execute()
+    )
+    return {
+        "colaborador": {
+            "nome": colaborador.get("nome"),
+            "cpf": colaborador.get("cpf"),
+            "pis": colaborador.get("pis"),
+            "cargo": colaborador.get("cargo"),
+            "departamento": colaborador.get("departamento"),
+            "email": colaborador.get("email"),
+        },
+        "empresa": empresa.data or {},
+    }
+
+
 @router.get("/saldo")
 async def saldo_horas(colaborador: dict = Depends(get_colaborador_atual)):
     colaborador_id = colaborador["id"]
