@@ -328,6 +328,21 @@ async def exportar_jornadas(
     raise HTTPException(400, "Formato não suportado. Use: csv")
 
 
+# ─── Perfil do usuário logado ────────────────────────────────────────────────
+
+@router.get("/me")
+async def get_me(rh=Depends(get_usuario_rh_atual)):
+    empresa = sb.table("empresas").select("nome").eq("id", rh["empresa_id"]).single().execute()
+    return {
+        "id": rh["id"],
+        "nome": rh["nome"],
+        "email": rh["email"],
+        "papel": rh["papel"],
+        "empresa_id": rh["empresa_id"],
+        "empresa_nome": empresa.data["nome"] if empresa.data else "—",
+    }
+
+
 # ─── Usuários RH ─────────────────────────────────────────────────────────────
 
 @router.get("/usuarios")

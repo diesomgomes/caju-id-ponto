@@ -1,7 +1,8 @@
+import { useEffect, useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { limparSessao } from '../api'
+import { limparSessao, getMe } from '../api'
 
-const nav = [
+const NAV_TODOS = [
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/registros', label: 'Registros' },
   { to: '/jornada', label: 'Jornada' },
@@ -9,16 +10,31 @@ const nav = [
   { to: '/locais', label: 'Locais' },
   { to: '/empresas', label: 'Empresas' },
   { to: '/modelos-jornada', label: 'Tipos de Jornada' },
-  { to: '/usuarios', label: 'Usuários RH' },
+  { to: '/usuarios', label: 'Usuários RH', apenasAdmin: true },
 ]
+
+const LABEL_PAPEL = { admin: 'Administrador', rh: 'RH', gestor: 'Gestor' }
+const COR_PAPEL = {
+  admin: 'text-purple-400 bg-purple-900/30',
+  rh: 'text-emerald-400 bg-emerald-900/30',
+  gestor: 'text-yellow-400 bg-yellow-900/30',
+}
 
 export default function Layout() {
   const navigate = useNavigate()
+  const [me, setMe] = useState(null)
+
+  useEffect(() => {
+    getMe().then(setMe).catch(() => {})
+  }, [])
 
   function sair() {
     limparSessao()
     navigate('/login')
   }
+
+  const isAdmin = me?.papel === 'admin'
+  const nav = NAV_TODOS.filter(item => !item.apenasAdmin || isAdmin)
 
   return (
     <div className="flex h-screen bg-gray-950 text-gray-100">
@@ -27,7 +43,8 @@ export default function Layout() {
           <span className="text-emerald-400 font-bold text-lg">CAJU ID</span>
           <p className="text-xs text-gray-500 mt-1">Painel RH</p>
         </div>
-        <nav className="flex-1 py-4">
+
+        <nav className="flex-1 py-4 overflow-y-auto">
           {nav.map(({ to, label }) => (
             <NavLink
               key={to}
@@ -44,13 +61,30 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
+
+        {/* Info do usuário logado */}
+        <div className="mx-3 mb-3 p-3 bg-gray-800 rounded-xl border border-gray-700">
+          {me ? (
+            <>
+              <p className="text-sm font-semibold text-gray-100 truncate">{me.nome}</p>
+              <p className="text-xs text-gray-500 truncate mb-2">{me.email}</p>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${COR_PAPEL[me.papel] || ''}`}>
+                {LABEL_PAPEL[me.papel] || me.papel}
+              </span>
+            </>
+          ) : (
+            <div className="h-10 animate-pulse bg-gray-700 rounded" />
+          )}
+        </div>
+
         <button
           onClick={sair}
-          className="mx-4 mb-6 py-2 rounded bg-gray-800 hover:bg-red-900/40 text-gray-400 hover:text-red-400 text-sm transition-colors"
+          className="mx-4 mb-5 py-2 rounded bg-gray-800 hover:bg-red-900/40 text-gray-400 hover:text-red-400 text-sm transition-colors"
         >
           Sair
         </button>
       </aside>
+
       <main className="flex-1 overflow-auto p-8">
         <Outlet />
       </main>

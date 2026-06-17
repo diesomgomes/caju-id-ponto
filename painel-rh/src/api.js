@@ -50,6 +50,8 @@ async function api(path, opts = {}) {
 }
 
 export const getDashboard = () => api('/rh/dashboard')
+export const getMe = () => api('/rh/me')
+
 export const getUsuarios = () => api('/rh/usuarios')
 export const criarUsuario = (body) => api('/rh/usuarios', { method: 'POST', body: JSON.stringify(body) })
 export const atualizarUsuario = (id, body) => api(`/rh/usuarios/${id}`, { method: 'PUT', body: JSON.stringify(body) })
