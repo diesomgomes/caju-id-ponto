@@ -50,7 +50,15 @@ async function api(path, opts = {}) {
 }
 
 export const getDashboard = () => api('/rh/dashboard')
-export const getColaboradores = () => api('/rh/colaboradores')
+export const getEmpresas = () => api('/rh/empresas')
+export const criarEmpresa = (body) => api('/rh/empresas', { method: 'POST', body: JSON.stringify(body) })
+export const atualizarEmpresa = (id, body) => api(`/rh/empresas/${id}`, { method: 'PUT', body: JSON.stringify(body) })
+export const excluirEmpresa = (id) => api(`/rh/empresas/${id}`, { method: 'DELETE' })
+
+export const getColaboradores = (params = {}) => {
+  const qs = new URLSearchParams(params).toString()
+  return api(`/rh/colaboradores${qs ? '?' + qs : ''}`)
+}
 export const getColaborador = (id) => api(`/rh/colaboradores/${id}`)
 export const criarColaborador = (body) => api('/rh/colaboradores', { method: 'POST', body: JSON.stringify(body) })
 export const atualizarColaborador = (id, body) => api(`/rh/colaboradores/${id}`, { method: 'PUT', body: JSON.stringify(body) })

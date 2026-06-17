@@ -10,35 +10,92 @@ from auth.deps import get_usuario_rh_atual
 router = APIRouter(prefix="/rh", tags=["rh"])
 
 
+def _empresa_ids(rh: dict) -> list[str]:
+    if rh.get("papel") == "admin":
+        res = sb.table("empresas").select("id").eq("ativo", True).execute()
+        return [e["id"] for e in (res.data or [])]
+    return [rh["empresa_id"]]
+
+
+# ─── Empresas ────────────────────────────────────────────────────────────────
+
+@router.get("/empresas")
+async def listar_empresas(rh=Depends(get_usuario_rh_atual)):
+    ids = _empresa_ids(rh)
+    if not ids:
+        return []
+    res = sb.table("empresas").select("*").in_("id", ids).order("nome").execute()
+    return res.data or []
+
+
+@router.post("/empresas")
+async def criar_empresa(body: dict, rh=Depends(get_usuario_rh_atual)):
+    if rh.get("papel") != "admin":
+        raise HTTPException(403, "Apenas administradores podem criar empresas")
+    payload = {k: v for k, v in body.items() if k not in ("id", "criado_em")}
+    payload.setdefault("ativo", True)
+    res = sb.table("empresas").insert(payload).execute()
+    if not res.data:
+        raise HTTPException(400, "Erro ao criar empresa")
+    return res.data[0]
+
+
+@router.put("/empresas/{empresa_id}")
+async def atualizar_empresa(empresa_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
+    if empresa_id not in _empresa_ids(rh):
+        raise HTTPException(403, "Sem acesso a esta empresa")
+    body.pop("id", None); body.pop("criado_em", None)
+    res = sb.table("empresas").update(body).eq("id", empresa_id).execute()
+    if not res.data:
+        raise HTTPException(404, "Empresa não encontrada")
+    return res.data[0]
+
+
+@router.delete("/empresas/{empresa_id}")
+async def excluir_empresa(empresa_id: str, rh=Depends(get_usuario_rh_atual)):
+    if rh.get("papel") != "admin":
+        raise HTTPException(403, "Apenas administradores podem excluir empresas")
+    if empresa_id not in _empresa_ids(rh):
+        raise HTTPException(403, "Sem acesso a esta empresa")
+    sb.table("empresas").update({"ativo": False}).eq("id", empresa_id).execute()
+    return {"ok": True}
+
+
 # ─── Dashboard ───────────────────────────────────────────────────────────────
 
 @router.get("/dashboard")
 async def dashboard(rh=Depends(get_usuario_rh_atual)):
-
-    empresa_id = rh["empresa_id"]
+    ids = _empresa_ids(rh)
     hoje = date.today().isoformat()
 
-    total_colab = sb.table("colaboradores").select("id", count="exact").eq("empresa_id", empresa_id).eq("ativo", True).execute()
-    regs_hoje = sb.table("registros_ponto").select("id, tipo, registrado_em, colaborador_id", count="exact").eq("empresa_id", empresa_id).gte("registrado_em", hoje + "T00:00:00").lte("registrado_em", hoje + "T23:59:59").execute()
+    if not ids:
+        return {
+            "total_colaboradores": 0, "registros_hoje": 0,
+            "atrasos_hoje": 0, "sem_registro_hoje": 0,
+            "registros_7dias": [], "ultimos_registros": [],
+        }
 
-    # Últimos 7 dias
+    total_colab = sb.table("colaboradores").select("id", count="exact").in_("empresa_id", ids).eq("ativo", True).execute()
+    regs_hoje = sb.table("registros_ponto").select("id, tipo, registrado_em, colaborador_id", count="exact") \
+        .in_("empresa_id", ids).gte("registrado_em", hoje + "T00:00:00").lte("registrado_em", hoje + "T23:59:59").execute()
+
     sete_dias = []
     for i in range(6, -1, -1):
         d = (date.today() - timedelta(days=i)).isoformat()
-        r = sb.table("registros_ponto").select("id", count="exact").eq("empresa_id", empresa_id).gte("registrado_em", d + "T00:00:00").lte("registrado_em", d + "T23:59:59").execute()
+        r = sb.table("registros_ponto").select("id", count="exact") \
+            .in_("empresa_id", ids).gte("registrado_em", d + "T00:00:00").lte("registrado_em", d + "T23:59:59").execute()
         sete_dias.append({"data": d, "total": r.count or 0})
 
-    # Ultimos 10 registros com nome
-    ultimos_raw = sb.table("registros_ponto").select("id, tipo, registrado_em, foto_url, colaborador_id").eq("empresa_id", empresa_id).order("registrado_em", desc=True).limit(10).execute()
+    ultimos_raw = sb.table("registros_ponto").select("id, tipo, registrado_em, foto_url, colaborador_id") \
+        .in_("empresa_id", ids).order("registrado_em", desc=True).limit(10).execute()
     ids_colab = list({r["colaborador_id"] for r in (ultimos_raw.data or [])})
     nomes = {}
     if ids_colab:
         cn = sb.table("colaboradores").select("id, nome").in_("id", ids_colab).execute()
         nomes = {c["id"]: c["nome"] for c in (cn.data or [])}
 
-    ultimos = []
-    for r in (ultimos_raw.data or []):
-        ultimos.append({**r, "colaborador_nome": nomes.get(r["colaborador_id"], "—"), "local_nome": None})
+    ultimos = [{**r, "colaborador_nome": nomes.get(r["colaborador_id"], "—"), "local_nome": None}
+               for r in (ultimos_raw.data or [])]
 
     return {
         "total_colaboradores": total_colab.count or 0,
@@ -53,16 +110,22 @@ async def dashboard(rh=Depends(get_usuario_rh_atual)):
 # ─── Colaboradores ───────────────────────────────────────────────────────────
 
 @router.get("/colaboradores")
-async def listar_colaboradores(rh=Depends(get_usuario_rh_atual)):
-
-    res = sb.table("colaboradores").select("*").eq("empresa_id", rh["empresa_id"]).order("nome").execute()
+async def listar_colaboradores(
+    empresa_id: Optional[str] = None,
+    rh=Depends(get_usuario_rh_atual),
+):
+    ids = _empresa_ids(rh)
+    if not ids:
+        return []
+    filtro = [empresa_id] if empresa_id and empresa_id in ids else ids
+    res = sb.table("colaboradores").select("*").in_("empresa_id", filtro).order("nome").execute()
     return res.data or []
 
 
 @router.get("/colaboradores/{colab_id}")
 async def get_colaborador(colab_id: str, rh=Depends(get_usuario_rh_atual)):
-
-    res = sb.table("colaboradores").select("*").eq("id", colab_id).eq("empresa_id", rh["empresa_id"]).single().execute()
+    ids = _empresa_ids(rh)
+    res = sb.table("colaboradores").select("*").eq("id", colab_id).in_("empresa_id", ids).single().execute()
     if not res.data:
         raise HTTPException(404, "Colaborador não encontrado")
     return res.data
@@ -70,8 +133,11 @@ async def get_colaborador(colab_id: str, rh=Depends(get_usuario_rh_atual)):
 
 @router.post("/colaboradores")
 async def criar_colaborador(body: dict, rh=Depends(get_usuario_rh_atual)):
-
-    payload = {**body, "empresa_id": rh["empresa_id"], "ativo": True}
+    ids = _empresa_ids(rh)
+    empresa = body.get("empresa_id") or rh["empresa_id"]
+    if empresa not in ids:
+        raise HTTPException(403, "Sem acesso a esta empresa")
+    payload = {**body, "empresa_id": empresa, "ativo": True}
     res = sb.table("colaboradores").insert(payload).execute()
     if not res.data:
         raise HTTPException(400, "Erro ao criar colaborador")
@@ -80,9 +146,9 @@ async def criar_colaborador(body: dict, rh=Depends(get_usuario_rh_atual)):
 
 @router.put("/colaboradores/{colab_id}")
 async def atualizar_colaborador(colab_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
-
+    ids = _empresa_ids(rh)
     body.pop("id", None); body.pop("empresa_id", None)
-    res = sb.table("colaboradores").update(body).eq("id", colab_id).eq("empresa_id", rh["empresa_id"]).execute()
+    res = sb.table("colaboradores").update(body).eq("id", colab_id).in_("empresa_id", ids).execute()
     if not res.data:
         raise HTTPException(404, "Colaborador não encontrado")
     return res.data[0]
@@ -90,8 +156,8 @@ async def atualizar_colaborador(colab_id: str, body: dict, rh=Depends(get_usuari
 
 @router.delete("/colaboradores/{colab_id}")
 async def excluir_colaborador(colab_id: str, rh=Depends(get_usuario_rh_atual)):
-
-    sb.table("colaboradores").update({"ativo": False}).eq("id", colab_id).eq("empresa_id", rh["empresa_id"]).execute()
+    ids = _empresa_ids(rh)
+    sb.table("colaboradores").update({"ativo": False}).eq("id", colab_id).in_("empresa_id", ids).execute()
     return {"ok": True}
 
 
@@ -102,10 +168,14 @@ async def listar_registros(
     colaborador_id: Optional[str] = None,
     tipo: Optional[str] = None,
     data: Optional[str] = None,
+    empresa_id: Optional[str] = None,
     rh=Depends(get_usuario_rh_atual),
 ):
-
-    q = sb.table("registros_ponto").select("*").eq("empresa_id", rh["empresa_id"])
+    ids = _empresa_ids(rh)
+    if not ids:
+        return []
+    filtro = [empresa_id] if empresa_id and empresa_id in ids else ids
+    q = sb.table("registros_ponto").select("*").in_("empresa_id", filtro)
     if colaborador_id:
         q = q.eq("colaborador_id", colaborador_id)
     if tipo:
@@ -127,9 +197,9 @@ async def listar_registros(
 @router.get("/registros/{registro_id}/foto")
 async def get_foto_url(registro_id: str, rh=Depends(get_usuario_rh_atual)):
     from services.storage import gerar_url_assinada
-
+    ids = _empresa_ids(rh)
     res = sb.table("registros_ponto").select("foto_url, empresa_id").eq("id", registro_id).single().execute()
-    if not res.data or res.data.get("empresa_id") != rh["empresa_id"]:
+    if not res.data or res.data.get("empresa_id") not in ids:
         raise HTTPException(404, "Registro não encontrado")
     foto_url = res.data.get("foto_url")
     if not foto_url:
@@ -141,9 +211,9 @@ async def get_foto_url(registro_id: str, rh=Depends(get_usuario_rh_atual)):
 
 @router.post("/registros/{registro_id}/ajuste")
 async def ajustar_registro(registro_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
-
+    ids = _empresa_ids(rh)
     res = sb.table("registros_ponto").select("empresa_id, tipo, registrado_em").eq("id", registro_id).single().execute()
-    if not res.data or res.data["empresa_id"] != rh["empresa_id"]:
+    if not res.data or res.data["empresa_id"] not in ids:
         raise HTTPException(404, "Registro não encontrado")
 
     campos = []
@@ -173,8 +243,13 @@ async def ajustar_registro(registro_id: str, body: dict, rh=Depends(get_usuario_
 async def listar_jornadas(
     mes: str = Query(..., description="YYYY-MM"),
     colaborador_id: Optional[str] = None,
+    empresa_id: Optional[str] = None,
     rh=Depends(get_usuario_rh_atual),
 ):
+    ids = _empresa_ids(rh)
+    if not ids:
+        return []
+    filtro = [empresa_id] if empresa_id and empresa_id in ids else ids
 
     inicio = mes + "-01"
     ano, m = int(mes.split("-")[0]), int(mes.split("-")[1])
@@ -182,7 +257,7 @@ async def listar_jornadas(
     fim_a = ano if m < 12 else ano + 1
     fim = f"{fim_a}-{fim_m:02d}-01"
 
-    q = sb.table("jornadas_diarias").select("*").eq("empresa_id", rh["empresa_id"]).gte("data", inicio).lt("data", fim)
+    q = sb.table("jornadas_diarias").select("*").in_("empresa_id", filtro).gte("data", inicio).lt("data", fim)
     if colaborador_id:
         q = q.eq("colaborador_id", colaborador_id)
     res = q.order("data", desc=True).execute()
@@ -194,11 +269,10 @@ async def listar_jornadas(
         cn = sb.table("colaboradores").select("id, nome").in_("id", ids_colab).execute()
         nomes = {c["id"]: c["nome"] for c in (cn.data or [])}
 
-    # Busca registros do período para montar horários individuais
     regs_idx = {}
     if ids_colab:
         rq = sb.table("registros_ponto").select("colaborador_id, tipo, registrado_em") \
-            .eq("empresa_id", rh["empresa_id"]) \
+            .in_("empresa_id", filtro) \
             .gte("registrado_em", inicio + "T00:00:00") \
             .lt("registrado_em", fim + "T00:00:00") \
             .in_("colaborador_id", ids_colab).execute()
@@ -228,9 +302,10 @@ async def exportar_jornadas(
     mes: str = Query(...),
     formato: str = Query("csv"),
     colaborador_id: Optional[str] = None,
+    empresa_id: Optional[str] = None,
     rh=Depends(get_usuario_rh_atual),
 ):
-    dados = await listar_jornadas(mes=mes, colaborador_id=colaborador_id, rh=rh)
+    dados = await listar_jornadas(mes=mes, colaborador_id=colaborador_id, empresa_id=empresa_id, rh=rh)
 
     if formato == "csv":
         output = io.StringIO()
@@ -256,16 +331,22 @@ async def exportar_jornadas(
 # ─── Locais ──────────────────────────────────────────────────────────────────
 
 @router.get("/locais")
-async def listar_locais(rh=Depends(get_usuario_rh_atual)):
-
-    res = sb.table("locais_permitidos").select("*").eq("empresa_id", rh["empresa_id"]).order("nome").execute()
+async def listar_locais(empresa_id: Optional[str] = None, rh=Depends(get_usuario_rh_atual)):
+    ids = _empresa_ids(rh)
+    if not ids:
+        return []
+    filtro = [empresa_id] if empresa_id and empresa_id in ids else ids
+    res = sb.table("locais_permitidos").select("*").in_("empresa_id", filtro).order("nome").execute()
     return res.data or []
 
 
 @router.post("/locais")
 async def criar_local(body: dict, rh=Depends(get_usuario_rh_atual)):
-
-    payload = {**body, "empresa_id": rh["empresa_id"]}
+    ids = _empresa_ids(rh)
+    empresa = body.get("empresa_id") or rh["empresa_id"]
+    if empresa not in ids:
+        raise HTTPException(403, "Sem acesso a esta empresa")
+    payload = {**body, "empresa_id": empresa}
     res = sb.table("locais_permitidos").insert(payload).execute()
     if not res.data:
         raise HTTPException(400, "Erro ao criar local")
@@ -274,9 +355,9 @@ async def criar_local(body: dict, rh=Depends(get_usuario_rh_atual)):
 
 @router.put("/locais/{local_id}")
 async def atualizar_local(local_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
-
+    ids = _empresa_ids(rh)
     body.pop("id", None); body.pop("empresa_id", None)
-    res = sb.table("locais_permitidos").update(body).eq("id", local_id).eq("empresa_id", rh["empresa_id"]).execute()
+    res = sb.table("locais_permitidos").update(body).eq("id", local_id).in_("empresa_id", ids).execute()
     if not res.data:
         raise HTTPException(404, "Local não encontrado")
     return res.data[0]
@@ -284,6 +365,6 @@ async def atualizar_local(local_id: str, body: dict, rh=Depends(get_usuario_rh_a
 
 @router.delete("/locais/{local_id}")
 async def excluir_local(local_id: str, rh=Depends(get_usuario_rh_atual)):
-
-    sb.table("locais_permitidos").delete().eq("id", local_id).eq("empresa_id", rh["empresa_id"]).execute()
+    ids = _empresa_ids(rh)
+    sb.table("locais_permitidos").delete().eq("id", local_id).in_("empresa_id", ids).execute()
     return {"ok": True}

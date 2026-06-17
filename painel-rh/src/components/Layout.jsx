@@ -7,6 +7,7 @@ const nav = [
   { to: '/jornada', label: 'Jornada' },
   { to: '/colaboradores', label: 'Colaboradores' },
   { to: '/locais', label: 'Locais' },
+  { to: '/empresas', label: 'Empresas' },
 ]
 
 export default function Layout() {

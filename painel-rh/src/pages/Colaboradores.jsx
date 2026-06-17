@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getColaboradores, criarColaborador, atualizarColaborador, excluirColaborador } from '../api'
+import { getColaboradores, criarColaborador, atualizarColaborador, excluirColaborador, getEmpresas } from '../api'
 
 const DIAS_SEMANA = [
   { key: 'seg', label: 'Seg' },
@@ -11,7 +11,7 @@ const DIAS_SEMANA = [
   { key: 'dom', label: 'Dom' },
 ]
 
-const CAMPOS_VAZIO = { nome: '', cpf: '', email: '', cargo: '', departamento: '', carga_horaria_diaria: '08:00:00' }
+const CAMPOS_VAZIO = { nome: '', cpf: '', email: '', cargo: '', departamento: '', empresa_id: '', carga_horaria_diaria: '08:00:00' }
 
 const JORNADA_VAZIO = {
   hora_entrada_esperada: '08:00',
@@ -20,7 +20,7 @@ const JORNADA_VAZIO = {
   dias_trabalho: 'seg,ter,qua,qui,sex',
 }
 
-function ModalColaborador({ titulo, dados, onChange, onSalvar, onFechar, loading, erro }) {
+function ModalColaborador({ titulo, dados, onChange, onSalvar, onFechar, loading, erro, empresas }) {
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onFechar}>
       <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4" onClick={e => e.stopPropagation()}>
@@ -28,6 +28,16 @@ function ModalColaborador({ titulo, dados, onChange, onSalvar, onFechar, loading
           <h3 className="font-semibold text-gray-100">{titulo}</h3>
           <button onClick={onFechar} className="text-gray-400 hover:text-gray-100 text-xl">×</button>
         </div>
+
+        <div>
+          <label className="text-xs text-gray-400 block mb-1">Empresa *</label>
+          <select value={dados.empresa_id || ''} onChange={e => onChange('empresa_id', e.target.value)}
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm">
+            <option value="">Selecione a empresa</option>
+            {empresas.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
+          </select>
+        </div>
+
         {[
           { key: 'nome', label: 'Nome completo', type: 'text' },
           { key: 'cpf', label: 'CPF', type: 'text' },
@@ -257,20 +267,31 @@ function ModalJornada({ colaborador, onFechar, onSalvo }) {
 
 export default function Colaboradores() {
   const [lista, setLista] = useState([])
+  const [empresas, setEmpresas] = useState([])
+  const [filtroEmpresa, setFiltroEmpresa] = useState('')
   const [modal, setModal] = useState(null)
   const [modalJornada, setModalJornada] = useState(null)
   const [form, setForm] = useState(CAMPOS_VAZIO)
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
 
-  const carregar = () => getColaboradores().then(setLista).catch(console.error)
-  useEffect(() => { carregar() }, [])
+  useEffect(() => { getEmpresas().then(setEmpresas).catch(console.error) }, [])
 
-  function abrirCriar() { setForm(CAMPOS_VAZIO); setErro(''); setModal('criar') }
+  const carregar = (emp = filtroEmpresa) =>
+    getColaboradores(emp ? { empresa_id: emp } : {}).then(setLista).catch(console.error)
+
+  useEffect(() => { carregar() }, [filtroEmpresa])
+
+  function abrirCriar() {
+    const empId = filtroEmpresa || (empresas.length === 1 ? empresas[0].id : '')
+    setForm({ ...CAMPOS_VAZIO, empresa_id: empId })
+    setErro(''); setModal('criar')
+  }
   function abrirEditar(c) { setForm(c); setErro(''); setModal(c) }
   function setField(key, val) { setForm(f => ({ ...f, [key]: val })) }
 
   async function salvar() {
+    if (!form.empresa_id) { setErro('Selecione a empresa.'); return }
     setErro(''); setLoading(true)
     try {
       if (modal === 'criar') await criarColaborador(form)
@@ -293,6 +314,8 @@ export default function Colaboradores() {
     return `${entrada}–${saida} · ${dias.split(',').length}d/sem`
   }
 
+  const nomeEmpresa = (id) => empresas.find(e => e.id === id)?.nome || '—'
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -302,11 +325,23 @@ export default function Colaboradores() {
         </button>
       </div>
 
+      {empresas.length > 1 && (
+        <div className="flex gap-3 items-center">
+          <label className="text-sm text-gray-400">Filtrar por empresa:</label>
+          <select value={filtroEmpresa} onChange={e => setFiltroEmpresa(e.target.value)}
+            className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-100">
+            <option value="">Todas as empresas</option>
+            {empresas.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
+          </select>
+        </div>
+      )}
+
       <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-gray-400 border-b border-gray-800 text-left">
               <th className="px-4 py-3">Nome</th>
+              <th className="px-4 py-3">Empresa</th>
               <th className="px-4 py-3">Cargo</th>
               <th className="px-4 py-3">Departamento</th>
               <th className="px-4 py-3">Jornada</th>
@@ -315,13 +350,14 @@ export default function Colaboradores() {
           </thead>
           <tbody>
             {lista.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500">Nenhum colaborador cadastrado.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">Nenhum colaborador cadastrado.</td></tr>
             ) : lista.map(c => (
               <tr key={c.id} className="border-b border-gray-800/50 text-gray-300 hover:bg-gray-800/30">
                 <td className="px-4 py-3">
                   <p className="font-medium">{c.nome}</p>
                   <p className="text-xs text-gray-500">{c.email}</p>
                 </td>
+                <td className="px-4 py-3 text-xs text-gray-400">{nomeEmpresa(c.empresa_id)}</td>
                 <td className="px-4 py-3">{c.cargo || '—'}</td>
                 <td className="px-4 py-3">{c.departamento || '—'}</td>
                 <td className="px-4 py-3 text-xs text-gray-400">{fmtJornada(c)}</td>
@@ -347,6 +383,7 @@ export default function Colaboradores() {
           onFechar={() => setModal(null)}
           loading={loading}
           erro={erro}
+          empresas={empresas}
         />
       )}
 
