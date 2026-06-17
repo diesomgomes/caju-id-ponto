@@ -1,26 +1,44 @@
 import { useEffect, useState } from 'react'
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { limparSessao, getMe } from '../api'
 
-const NAV_TODOS = [
-  { to: '/dashboard', label: 'Dashboard' },
-  { to: '/registros', label: 'Registros' },
-  { to: '/jornada', label: 'Jornada' },
-  { to: '/colaboradores', label: 'Colaboradores' },
-  { to: '/locais', label: 'Locais' },
-  { to: '/empresas', label: 'Empresas' },
-  { to: '/modelos-jornada', label: 'Tipos de Jornada' },
-  { to: '/usuarios', label: 'Usuários RH' },
+const NAV_SECTIONS = [
+  {
+    label: 'Principal',
+    items: [
+      { to: '/dashboard', label: 'Dashboard' },
+      { to: '/registros', label: 'Registros' },
+      { to: '/jornada', label: 'Jornada' },
+      { to: '/colaboradores', label: 'Colaboradores' },
+    ],
+  },
+  {
+    label: 'Configurações',
+    items: [
+      { to: '/locais', label: 'Locais' },
+      { to: '/empresas', label: 'Empresas' },
+      { to: '/modelos-jornada', label: 'Tipos de Jornada' },
+      { to: '/usuarios', label: 'Usuários RH' },
+    ],
+  },
 ]
 
-const LABEL_PAPEL = { admin: 'Administrador', rh: 'Gestão' }
-const COR_PAPEL = {
-  admin: 'text-purple-400 bg-purple-900/30',
-  rh: 'text-emerald-400 bg-emerald-900/30',
+const PAGE_LABELS = {
+  '/dashboard': 'Dashboard',
+  '/registros': 'Registros',
+  '/jornada': 'Jornada',
+  '/colaboradores': 'Colaboradores',
+  '/locais': 'Locais',
+  '/empresas': 'Empresas',
+  '/modelos-jornada': 'Tipos de Jornada',
+  '/usuarios': 'Usuários RH',
 }
+
+const LABEL_PAPEL = { admin: 'Administrador', rh: 'Gestão', gestor: 'Gestão' }
 
 export default function Layout() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [me, setMe] = useState(null)
 
   useEffect(() => {
@@ -32,60 +50,105 @@ export default function Layout() {
     navigate('/login')
   }
 
-  const nav = NAV_TODOS
+  const pageLabel = PAGE_LABELS[location.pathname] || 'CAJU ID'
 
   return (
-    <div className="flex h-screen bg-gray-950 text-gray-100">
-      <aside className="w-56 bg-gray-900 flex flex-col border-r border-gray-800">
-        <div className="px-5 py-6 border-b border-gray-800">
-          <span className="text-emerald-400 font-bold text-lg">CAJU ID</span>
-          <p className="text-xs text-gray-500 mt-1">Painel RH</p>
+    <div className="flex h-screen" style={{ background: '#f5f5f7' }}>
+
+      {/* ── Sidebar ── */}
+      <aside className="w-52 flex flex-col flex-shrink-0" style={{ background: '#0c0c0f' }}>
+
+        {/* Logo */}
+        <div className="px-5 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 bg-emerald-500 rounded-lg flex items-center justify-center flex-shrink-0">
+              <span className="text-white text-xs font-bold">C</span>
+            </div>
+            <div>
+              <p className="text-white text-sm font-medium leading-tight">CAJU ID</p>
+              <p className="text-xs leading-tight" style={{ color: 'rgba(255,255,255,0.3)' }}>Ponto Eletrônico</p>
+            </div>
+          </div>
         </div>
 
-        <nav className="flex-1 py-4 overflow-y-auto">
-          {nav.map(({ to, label }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                `block px-5 py-2.5 text-sm transition-colors ${
-                  isActive
-                    ? 'bg-emerald-600/20 text-emerald-400 border-r-2 border-emerald-400'
-                    : 'text-gray-400 hover:text-gray-100 hover:bg-gray-800'
-                }`
-              }
-            >
-              {label}
-            </NavLink>
+        {/* Nav */}
+        <nav className="flex-1 py-3 overflow-y-auto">
+          {NAV_SECTIONS.map(section => (
+            <div key={section.label} className="mb-2">
+              <p
+                className="px-5 py-1.5 text-xs font-medium uppercase tracking-widest"
+                style={{ color: 'rgba(255,255,255,0.2)', letterSpacing: '0.08em' }}
+              >
+                {section.label}
+              </p>
+              {section.items.map(({ to, label }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  className={({ isActive }) =>
+                    `relative flex items-center px-5 py-2 text-sm transition-colors ${
+                      isActive ? 'sb-nav-active' : 'sb-nav-idle'
+                    }`
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      {isActive && (
+                        <span
+                          className="absolute left-0 top-1/2 -translate-y-1/2 rounded-r bg-emerald-400"
+                          style={{ width: 3, height: 18 }}
+                        />
+                      )}
+                      {label}
+                    </>
+                  )}
+                </NavLink>
+              ))}
+            </div>
           ))}
         </nav>
 
-        {/* Info do usuário logado */}
-        <div className="mx-3 mb-3 p-3 bg-gray-800 rounded-xl border border-gray-700">
+        {/* Usuário + Sair */}
+        <div className="px-4 py-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
           {me ? (
-            <>
-              <p className="text-sm font-semibold text-gray-100 truncate">{me.nome}</p>
-              <p className="text-xs text-gray-500 truncate mb-2">{me.email}</p>
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${COR_PAPEL[me.papel] || ''}`}>
-                {LABEL_PAPEL[me.papel] || me.papel}
-              </span>
-            </>
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className="w-7 h-7 rounded-full bg-emerald-600 flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
+                {me.nome?.charAt(0)?.toUpperCase() || '?'}
+              </div>
+              <div className="min-w-0">
+                <p className="text-white text-xs font-medium truncate leading-tight">{me.nome}</p>
+                <p className="text-xs truncate leading-tight" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                  {LABEL_PAPEL[me.papel] || me.papel}
+                </p>
+              </div>
+            </div>
           ) : (
-            <div className="h-10 animate-pulse bg-gray-700 rounded" />
+            <div className="h-9 rounded-lg mb-3 animate-pulse" style={{ background: 'rgba(255,255,255,0.06)' }} />
           )}
+          <button
+            onClick={sair}
+            className="w-full py-1.5 rounded-lg text-xs transition-colors sb-sair-btn"
+          >
+            Sair
+          </button>
         </div>
-
-        <button
-          onClick={sair}
-          className="mx-4 mb-5 py-2 rounded bg-gray-800 hover:bg-red-900/40 text-gray-400 hover:text-red-400 text-sm transition-colors"
-        >
-          Sair
-        </button>
       </aside>
 
-      <main className="flex-1 overflow-auto p-8">
-        <Outlet />
-      </main>
+      {/* ── Área principal ── */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+
+        {/* Topbar */}
+        <header className="h-12 bg-white flex items-center px-6 gap-1.5 flex-shrink-0" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+          <span className="text-xs" style={{ color: '#a1a1aa' }}>CAJU ID</span>
+          <span className="text-xs" style={{ color: '#d4d4d8' }}>/</span>
+          <span className="text-xs font-medium" style={{ color: '#3f3f46' }}>{pageLabel}</span>
+        </header>
+
+        {/* Conteúdo das páginas */}
+        <main className="flex-1 overflow-auto p-6 rh-content">
+          <Outlet />
+        </main>
+      </div>
     </div>
   )
 }

@@ -4,3 +4,113 @@
 
 * { box-sizing: border-box; }
 body { margin: 0; font-family: system-ui, sans-serif; }
+
+/* ── Sidebar nav items ── */
+.sb-nav-active {
+  color: #ffffff;
+  background: rgba(255,255,255,0.07);
+}
+.sb-nav-idle {
+  color: rgba(255,255,255,0.38);
+}
+.sb-nav-idle:hover {
+  color: rgba(255,255,255,0.7);
+  background: rgba(255,255,255,0.04);
+}
+.sb-sair-btn {
+  color: rgba(255,255,255,0.28);
+}
+.sb-sair-btn:hover {
+  color: #f87171;
+  background: rgba(255,255,255,0.04);
+}
+
+/* ══════════════════════════════════════════════
+   Tema claro — estilo Smart Buy para o conteúdo
+   ══════════════════════════════════════════════ */
+
+/* Fundo geral da área de conteúdo */
+.rh-content {
+  background: #f5f5f7;
+}
+
+/* Cards / painéis */
+.rh-content .bg-gray-900 {
+  background-color: #ffffff !important;
+  box-shadow: 0 0 0 0.5px rgba(0,0,0,0.08);
+}
+.rh-content .bg-gray-950 {
+  background-color: #f5f5f7 !important;
+}
+
+/* Inputs, selects, superfícies secundárias */
+.rh-content .bg-gray-800 {
+  background-color: #f4f4f5 !important;
+}
+
+/* Bordas */
+.rh-content .border-gray-800 {
+  border-color: rgba(0,0,0,0.08) !important;
+}
+.rh-content .border-gray-700 {
+  border-color: rgba(0,0,0,0.10) !important;
+}
+
+/* Texto primário */
+.rh-content .text-gray-100 { color: #18181b !important; }
+.rh-content .text-gray-200 { color: #27272a !important; }
+.rh-content .text-gray-300 { color: #3f3f46 !important; }
+.rh-content .text-gray-400 { color: #71717a !important; }
+.rh-content .text-gray-500 { color: #a1a1aa !important; }
+.rh-content .text-gray-600 { color: #c0c0c8 !important; }
+
+/* Hover em linhas de tabela */
+.rh-content .hover\:bg-gray-800\/30:hover {
+  background-color: rgba(0,0,0,0.025) !important;
+}
+.rh-content .hover\:bg-gray-700:hover {
+  background-color: #f3f4f6 !important;
+}
+.rh-content .hover\:bg-gray-800:hover {
+  background-color: #f3f4f6 !important;
+}
+
+/* Thead */
+.rh-content thead tr {
+  background-color: #fafafa !important;
+}
+
+/* Skeleton loading */
+.rh-content .bg-gray-700 {
+  background-color: #e4e4e7 !important;
+}
+
+/* Badges de papel */
+.rh-content .bg-purple-900\/30 { background-color: #f5f3ff !important; }
+.rh-content .text-purple-400   { color: #7c3aed !important; }
+.rh-content .bg-emerald-900\/40 { background-color: #ecfdf5 !important; }
+.rh-content .text-emerald-400  { color: #059669 !important; }
+.rh-content .bg-red-900\/40    { background-color: #fef2f2 !important; }
+.rh-content .text-red-400      { color: #dc2626 !important; }
+.rh-content .bg-blue-900\/40   { background-color: #eff6ff !important; }
+
+/* Links de ação nas tabelas */
+.rh-content .text-blue-400     { color: #2563eb !important; }
+.rh-content .text-blue-300     { color: #3b82f6 !important; }
+.rh-content .hover\:text-blue-300:hover { color: #2563eb !important; }
+.rh-content .text-red-300      { color: #ef4444 !important; }
+.rh-content .hover\:text-red-300:hover  { color: #dc2626 !important; }
+
+/* Botões emerald ficam intactos */
+.rh-content .bg-emerald-600 { background-color: #059669 !important; }
+.rh-content .hover\:bg-emerald-500:hover { background-color: #10b981 !important; }
+
+/* Overlay de modal (fundo escuro) — não deve ser afetado */
+.rh-content .bg-black\/70 {
+  background-color: rgba(0,0,0,0.6) !important;
+}
+
+/* Titles das páginas */
+.rh-content h1 {
+  color: #18181b;
+}
