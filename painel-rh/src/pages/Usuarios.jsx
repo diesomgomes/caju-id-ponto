@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getUsuarios, criarUsuario, atualizarUsuario, excluirUsuario, getEmpresas, getMe } from '../api'
+import Portal from '../components/Portal'
 
 const PAPEIS = [
   { value: 'admin', label: 'Administrador' },
@@ -14,7 +15,7 @@ function ModalCriar({ onSalvar, onFechar, loading, erro, empresas }) {
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4" onClick={onFechar}>
+    <Portal><div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4" onClick={onFechar}>
       <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center">
           <h3 className="font-semibold text-gray-100">Novo Usuário RH</h3>
@@ -61,7 +62,7 @@ function ModalCriar({ onSalvar, onFechar, loading, erro, empresas }) {
           </button>
         </div>
       </div>
-    </div>
+    </div></Portal>
   )
 }
 
@@ -75,7 +76,7 @@ function ModalEditar({ usuario, onSalvar, onFechar, loading, erro }) {
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4" onClick={onFechar}>
+    <Portal><div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4" onClick={onFechar}>
       <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center">
           <h3 className="font-semibold text-gray-100">Editar Usuário</h3>
@@ -111,7 +112,7 @@ function ModalEditar({ usuario, onSalvar, onFechar, loading, erro }) {
           </button>
         </div>
       </div>
-    </div>
+    </div></Portal>
   )
 }
 

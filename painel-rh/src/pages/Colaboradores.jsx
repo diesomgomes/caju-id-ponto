@@ -3,6 +3,7 @@ import {
   getColaboradores, criarColaborador, atualizarColaborador, excluirColaborador,
   getEmpresas, getModelosJornada, getLocais, getLocaisColaborador, setLocaisColaborador,
 } from '../api'
+import Portal from '../components/Portal'
 
 const DIAS_SEMANA = [
   { key: 'seg', label: 'Seg' },
@@ -25,7 +26,7 @@ const JORNADA_VAZIO = {
 
 function ModalColaborador({ titulo, dados, onChange, onSalvar, onFechar, loading, erro, empresas, modelos }) {
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4" onClick={onFechar}>
+    <Portal><div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4" onClick={onFechar}>
       <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center">
           <h3 className="font-semibold text-gray-100">{titulo}</h3>
@@ -75,7 +76,7 @@ function ModalColaborador({ titulo, dados, onChange, onSalvar, onFechar, loading
           </button>
         </div>
       </div>
-    </div>
+    </div></Portal>
   )
 }
 
@@ -105,7 +106,7 @@ function ModalLocais({ colaborador, todosLocais, onFechar, onSalvo }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4" onClick={onFechar}>
+    <Portal><div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4" onClick={onFechar}>
       <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center">
           <div>
@@ -148,7 +149,7 @@ function ModalLocais({ colaborador, todosLocais, onFechar, onSalvo }) {
           </button>
         </div>
       </div>
-    </div>
+    </div></Portal>
   )
 }
 
@@ -239,7 +240,7 @@ function ModalJornada({ colaborador, onFechar, onSalvo }) {
   const diasOrdenados = [...form.dias].sort((a, b) => ordemDias.indexOf(a) - ordemDias.indexOf(b))
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4" onClick={onFechar}>
+    <Portal><div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4" onClick={onFechar}>
       <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-5 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center">
           <div>
@@ -349,7 +350,7 @@ function ModalJornada({ colaborador, onFechar, onSalvo }) {
           </button>
         </div>
       </div>
-    </div>
+    </div></Portal>
   )
 }
 
