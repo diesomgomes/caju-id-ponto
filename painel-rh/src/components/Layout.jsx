@@ -6,32 +6,32 @@ const NAV_SECTIONS = [
   {
     label: 'Principal',
     items: [
-      { to: '/dashboard', label: 'Dashboard' },
-      { to: '/registros', label: 'Registros' },
-      { to: '/jornada', label: 'Jornada' },
+      { to: '/dashboard', label: 'Painel de controle' },
+      { to: '/registros', label: 'Registro de batidas' },
+      { to: '/jornada', label: 'Acompanhamento de jornada' },
       { to: '/colaboradores', label: 'Colaboradores' },
     ],
   },
   {
     label: 'Configurações',
     items: [
-      { to: '/locais', label: 'Locais' },
-      { to: '/empresas', label: 'Empresas' },
-      { to: '/modelos-jornada', label: 'Tipos de Jornada' },
-      { to: '/usuarios', label: 'Usuários RH' },
+      { to: '/locais', label: 'Localizações' },
+      { to: '/empresas', label: 'Cadastro de empresas' },
+      { to: '/modelos-jornada', label: 'Cadastro de Jornadas' },
+      { to: '/usuarios', label: 'Cadastro de usuários' },
     ],
   },
 ]
 
 const PAGE_LABELS = {
-  '/dashboard': 'Dashboard',
-  '/registros': 'Registros',
-  '/jornada': 'Jornada',
+  '/dashboard': 'Painel de controle',
+  '/registros': 'Registro de batidas',
+  '/jornada': 'Acompanhamento de jornada',
   '/colaboradores': 'Colaboradores',
-  '/locais': 'Locais',
-  '/empresas': 'Empresas',
-  '/modelos-jornada': 'Tipos de Jornada',
-  '/usuarios': 'Usuários RH',
+  '/locais': 'Localizações',
+  '/empresas': 'Cadastro de empresas',
+  '/modelos-jornada': 'Cadastro de Jornadas',
+  '/usuarios': 'Cadastro de usuários',
 }
 
 const LABEL_PAPEL = { admin: 'Administrador', rh: 'Gestão', gestor: 'Gestão' }
@@ -165,9 +165,6 @@ export default function Layout() {
 
         {/* Topbar */}
         <header className="h-12 bg-white flex items-center px-6 gap-2 flex-shrink-0" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-          {empresa?.logo_url && (
-            <img src={empresa.logo_url} alt="logo" className="h-6 w-6 rounded object-contain" />
-          )}
           <span className="text-xs" style={{ color: '#a1a1aa' }}>CAJU ID</span>
           <span className="text-xs" style={{ color: '#d4d4d8' }}>/</span>
           <span className="text-xs font-medium" style={{ color: '#3f3f46' }}>{pageLabel}</span>
