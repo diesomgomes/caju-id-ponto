@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { getEmpresas, criarEmpresa, atualizarEmpresa, excluirEmpresa } from '../api'
 import Portal from '../components/Portal'
 
-const VAZIO = { nome: '', cnpj: '', cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', estado: '' }
+const VAZIO = { nome: '', cnpj: '', logo_url: '', cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', estado: '' }
 
 function ModalEmpresa({ titulo, dados, onChange, onSalvar, onFechar, loading, erro }) {
   return (
@@ -23,6 +23,19 @@ function ModalEmpresa({ titulo, dados, onChange, onSalvar, onFechar, loading, er
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
           </div>
         ))}
+
+        <div>
+          <label className="text-xs text-gray-400 block mb-1">Logo (URL da imagem)</label>
+          <input type="url" value={dados.logo_url || ''} onChange={e => onChange('logo_url', e.target.value)}
+            placeholder="https://exemplo.com/logo.png"
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+          {dados.logo_url && (
+            <div className="mt-2 flex items-center gap-3">
+              <img src={dados.logo_url} alt="preview" className="h-10 w-10 rounded-lg object-contain bg-white/10" />
+              <span className="text-xs text-gray-500">Preview da logo</span>
+            </div>
+          )}
+        </div>
 
         <p className="text-xs text-gray-500 uppercase tracking-wider pt-1">Endereço</p>
 

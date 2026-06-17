@@ -49,12 +49,38 @@ async function handleLogin(e) {
         throw new Error("Este acesso é exclusivo para colaboradores.");
       }
     }
+    // Mostra logo da empresa já na tela de login durante transição
+    getPerfil().then(p => aplicarBrandingEmpresa(p?.empresa)).catch(() => {});
     await carregarHome();
   } catch (err) {
     erro.textContent = err.message;
   } finally {
     btn.disabled = false;
     btn.textContent = "Entrar";
+  }
+}
+
+// ── Branding da empresa ───────────────────────────────────────────────────────
+function aplicarBrandingEmpresa(emp) {
+  if (!emp) return;
+  // Nome na home e no login
+  if (emp.nome) {
+    const elHome = document.getElementById("nome-empresa");
+    if (elHome) elHome.textContent = emp.nome;
+    const elLogin = document.getElementById("login-empresa-nome");
+    if (elLogin) elLogin.textContent = emp.nome;
+  }
+  if (emp.logo_url) {
+    // Logo no bloco de login
+    const wrap = document.getElementById("login-logo-wrap");
+    if (wrap) {
+      wrap.innerHTML = `<img src="${emp.logo_url}" alt="logo" style="width:100%;height:100%;object-fit:contain;border-radius:1rem;" />`;
+      wrap.style.background = "rgba(255,255,255,0.08)";
+    }
+    // Favicon
+    let link = document.querySelector("link[rel~='icon']");
+    if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
+    link.href = emp.logo_url;
   }
 }
 
@@ -71,11 +97,8 @@ async function carregarHome() {
   document.getElementById("nome-colaborador").textContent =
     sessao?.user?.user_metadata?.nome || sessao?.user?.email || "Colaborador";
 
-  // Carrega nome da empresa via perfil
-  getPerfil().then(p => {
-    const empresa = p?.empresa?.nome;
-    if (empresa) document.getElementById("nome-empresa").textContent = empresa;
-  }).catch(() => {});
+  // Carrega nome e logo da empresa via perfil
+  getPerfil().then(p => aplicarBrandingEmpresa(p?.empresa)).catch(() => {});
 
   try {
     const status = await getStatus();

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
-import { limparSessao, getMe } from '../api'
+import { limparSessao, getMe, getEmpresas } from '../api'
 
 const NAV_SECTIONS = [
   {
@@ -36,13 +36,31 @@ const PAGE_LABELS = {
 
 const LABEL_PAPEL = { admin: 'Administrador', rh: 'Gestão', gestor: 'Gestão' }
 
+function setFavicon(url) {
+  let link = document.querySelector("link[rel~='icon']")
+  if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link) }
+  link.href = url
+}
+
 export default function Layout() {
   const navigate = useNavigate()
   const location = useLocation()
   const [me, setMe] = useState(null)
+  const [empresa, setEmpresa] = useState(null)
 
   useEffect(() => {
-    getMe().then(setMe).catch(() => {})
+    getMe().then(me => {
+      setMe(me)
+      if (me?.empresa_id) {
+        getEmpresas().then(emps => {
+          const emp = emps.find(e => e.id === me.empresa_id)
+          if (emp) {
+            setEmpresa(emp)
+            if (emp.logo_url) setFavicon(emp.logo_url)
+          }
+        }).catch(() => {})
+      }
+    }).catch(() => {})
   }, [])
 
   function sair() {
@@ -61,11 +79,19 @@ export default function Layout() {
         {/* Logo */}
         <div className="px-5 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 bg-emerald-500 rounded-lg flex items-center justify-center flex-shrink-0">
-              <span className="text-white text-xs font-bold">C</span>
-            </div>
+            {empresa?.logo_url ? (
+              <img src={empresa.logo_url} alt="logo"
+                className="w-7 h-7 rounded-lg object-contain flex-shrink-0"
+                style={{ background: 'rgba(255,255,255,0.08)' }} />
+            ) : (
+              <div className="w-7 h-7 bg-emerald-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                <span className="text-white text-xs font-bold">C</span>
+              </div>
+            )}
             <div>
-              <p className="text-white text-sm font-medium leading-tight">CAJU ID</p>
+              <p className="text-white text-sm font-medium leading-tight">
+                {empresa?.nome ? empresa.nome.split(' ')[0] : 'CAJU ID'}
+              </p>
               <p className="text-xs leading-tight" style={{ color: 'rgba(255,255,255,0.3)' }}>Ponto Eletrônico</p>
             </div>
           </div>
@@ -138,7 +164,10 @@ export default function Layout() {
       <div className="flex-1 flex flex-col overflow-hidden">
 
         {/* Topbar */}
-        <header className="h-12 bg-white flex items-center px-6 gap-1.5 flex-shrink-0" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+        <header className="h-12 bg-white flex items-center px-6 gap-2 flex-shrink-0" style={{ borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+          {empresa?.logo_url && (
+            <img src={empresa.logo_url} alt="logo" className="h-6 w-6 rounded object-contain" />
+          )}
           <span className="text-xs" style={{ color: '#a1a1aa' }}>CAJU ID</span>
           <span className="text-xs" style={{ color: '#d4d4d8' }}>/</span>
           <span className="text-xs font-medium" style={{ color: '#3f3f46' }}>{pageLabel}</span>

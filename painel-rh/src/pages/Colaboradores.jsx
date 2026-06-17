@@ -177,7 +177,7 @@ function calcularCargaLiquida(entrada, saida, inicioAlmoco, fimAlmoco) {
   return minsToInterval(trabalho)
 }
 
-function ModalJornada({ colaborador, onFechar, onSalvo }) {
+function ModalJornada({ colaborador, onFechar, onSalvo, modelos = [] }) {
   const diasAtivos = (colaborador.dias_trabalho || 'seg,ter,qua,qui,sex').split(',')
   const [form, setForm] = useState({
     hora_entrada_esperada:  colaborador.hora_entrada_esperada?.slice(0, 5)  || '08:00',
@@ -210,6 +210,20 @@ function ModalJornada({ colaborador, onFechar, onSalvo }) {
   }
 
   function set(key, val) { setForm(f => recalcular({ [key]: val })) }
+
+  function aplicarModelo(modeloId) {
+    const m = modelos.find(x => x.id === modeloId)
+    if (!m) return
+    setForm({
+      hora_entrada_esperada:  m.hora_entrada?.slice(0, 5)       || '08:00',
+      hora_saida_esperada:    m.hora_saida?.slice(0, 5)         || '17:00',
+      hora_inicio_almoco:     m.hora_inicio_almoco?.slice(0, 5) || '12:00',
+      hora_fim_almoco:        m.hora_fim_almoco?.slice(0, 5)    || '13:00',
+      almoco_ativo:           !!m.hora_inicio_almoco,
+      dias:                   (m.dias_trabalho || 'seg,ter,qua,qui,sex').split(','),
+      carga_horaria_diaria:   m.carga_horaria_diaria            || '08:00:00',
+    })
+  }
 
   const duracaoAlmoco = (() => {
     if (!form.almoco_ativo) return null
@@ -249,6 +263,21 @@ function ModalJornada({ colaborador, onFechar, onSalvo }) {
           </div>
           <button onClick={onFechar} className="text-gray-400 hover:text-gray-100 text-xl">×</button>
         </div>
+
+        {/* Aplicar modelo existente */}
+        {modelos.length > 0 && (
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">Aplicar jornada existente</label>
+            <select onChange={e => aplicarModelo(e.target.value)} defaultValue=""
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm">
+              <option value="">Selecionar modelo para pré-preencher...</option>
+              {modelos.filter(m => !colaborador.empresa_id || m.empresa_id === colaborador.empresa_id).map(m => (
+                <option key={m.id} value={m.id}>{m.nome}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-600 mt-1">Selecione para pré-preencher os campos abaixo, ou configure manualmente.</p>
+          </div>
+        )}
 
         {/* Dias da semana */}
         <div>
@@ -499,6 +528,7 @@ export default function Colaboradores() {
           colaborador={modalJornada}
           onFechar={() => setModalJornada(null)}
           onSalvo={carregar}
+          modelos={modelos}
         />
       )}
     </div>
