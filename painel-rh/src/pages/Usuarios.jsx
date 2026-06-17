@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getUsuarios, criarUsuario, atualizarUsuario, excluirUsuario, getEmpresas } from '../api'
-import { getSessao } from '../api'
+import { getUsuarios, criarUsuario, atualizarUsuario, excluirUsuario, getEmpresas, getMe } from '../api'
 
 const PAPEIS = [
   { value: 'admin', label: 'Administrador' },
@@ -116,24 +115,23 @@ function ModalEditar({ usuario, onSalvar, onFechar, loading, erro }) {
   )
 }
 
-const labelPapel = { admin: 'Administrador', rh: 'Gestão' }
-const corPapel = { admin: 'text-purple-400 bg-purple-900/30', rh: 'text-emerald-400 bg-emerald-900/30' }
+const labelPapel = { admin: 'Administrador', rh: 'Gestão', gestor: 'Gestão' }
+const corPapel = { admin: 'text-purple-400 bg-purple-900/30', rh: 'text-emerald-400 bg-emerald-900/30', gestor: 'text-emerald-400 bg-emerald-900/30' }
 
 export default function Usuarios() {
   const [lista, setLista] = useState([])
   const [empresas, setEmpresas] = useState([])
+  const [me, setMe] = useState(null)
   const [modal, setModal] = useState(null)
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
-  const sessao = getSessao()
 
   const carregar = () => getUsuarios().then(setLista).catch(console.error)
 
   useEffect(() => {
     carregar()
-    getEmpresas().then(e => {
-      setEmpresas(e)
-    }).catch(console.error)
+    getEmpresas().then(setEmpresas).catch(console.error)
+    getMe().then(setMe).catch(console.error)
   }, [])
 
   async function salvarCriar(form) {
@@ -202,11 +200,16 @@ export default function Usuarios() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex gap-3">
-                    <button onClick={() => { setErro(''); setModal(u) }}
-                      className="text-blue-400 hover:text-blue-300 text-xs underline">Editar</button>
-                    {u.auth_user_id !== sessao?.user?.id && (
+                    {(me?.papel === 'admin' || u.papel !== 'admin') && (
+                      <button onClick={() => { setErro(''); setModal(u) }}
+                        className="text-blue-400 hover:text-blue-300 text-xs underline">Editar</button>
+                    )}
+                    {u.id !== me?.id && (me?.papel === 'admin' || u.papel !== 'admin') && (
                       <button onClick={() => excluir(u)}
                         className="text-red-400 hover:text-red-300 text-xs underline">Excluir</button>
+                    )}
+                    {me?.papel !== 'admin' && u.papel === 'admin' && (
+                      <span className="text-gray-600 text-xs">—</span>
                     )}
                   </div>
                 </td>
