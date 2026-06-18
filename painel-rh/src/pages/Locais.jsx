@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Circle, useMapEvents } from 'react-lea
 import L from 'leaflet'
 import { getLocais, criarLocal, atualizarLocal, excluirLocal } from '../api'
 import Portal from '../components/Portal'
+import { IconEditar, IconExcluir } from '../components/IconBtn'
 
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -142,9 +143,9 @@ export default function Locais() {
                 <td className="px-4 py-3 text-gray-500">{Number(l.lat).toFixed(6)}</td>
                 <td className="px-4 py-3 text-gray-500">{Number(l.lng).toFixed(6)}</td>
                 <td className="px-4 py-3">{l.raio_metros}m</td>
-                <td className="px-4 py-3 flex gap-3">
-                  <button onClick={() => abrirEditar(l)} className="text-blue-400 hover:text-blue-300 text-xs underline">Editar</button>
-                  <button onClick={() => excluir(l.id)} className="text-red-400 hover:text-red-300 text-xs underline">Excluir</button>
+                <td className="px-4 py-3 flex gap-1">
+                  <IconEditar onClick={() => abrirEditar(l)} />
+                  <IconExcluir onClick={() => excluir(l.id)} />
                 </td>
               </tr>
             ))}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getModelosJornada, criarModeloJornada, atualizarModeloJornada, excluirModeloJornada, getEmpresas } from '../api'
 import Portal from '../components/Portal'
+import { IconEditar, IconExcluir } from '../components/IconBtn'
 
 const DIAS_SEMANA = [
   { key: 'seg', label: 'Seg' }, { key: 'ter', label: 'Ter' }, { key: 'qua', label: 'Qua' },
@@ -283,9 +284,9 @@ export default function ModelosJornada() {
                 <td className="px-4 py-3 text-xs text-gray-400">{fmtDias(m.dias_trabalho)}</td>
                 <td className="px-4 py-3 text-xs text-emerald-400">{m.carga_horaria_diaria?.slice(0, 5)}h/dia</td>
                 <td className="px-4 py-3">
-                  <div className="flex gap-3">
-                    <button onClick={() => abrirEditar(m)} className="text-blue-400 hover:text-blue-300 text-xs underline">Editar</button>
-                    <button onClick={() => excluir(m.id)} className="text-red-400 hover:text-red-300 text-xs underline">Excluir</button>
+                  <div className="flex gap-1">
+                    <IconEditar onClick={() => abrirEditar(m)} />
+                    <IconExcluir onClick={() => excluir(m.id)} />
                   </div>
                 </td>
               </tr>

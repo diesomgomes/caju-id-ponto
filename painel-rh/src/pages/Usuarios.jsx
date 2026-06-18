@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getUsuarios, criarUsuario, atualizarUsuario, excluirUsuario, getEmpresas, getMe } from '../api'
 import Portal from '../components/Portal'
+import { IconEditar, IconExcluir } from '../components/IconBtn'
 
 const PAPEIS_ADMIN = [
   { value: 'admin', label: 'Administrador' },
@@ -203,17 +204,12 @@ export default function Usuarios() {
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex gap-3">
+                  <div className="flex gap-1">
                     {(me?.papel === 'admin' || u.papel !== 'admin') && (
-                      <button onClick={() => { setErro(''); setModal(u) }}
-                        className="text-blue-400 hover:text-blue-300 text-xs underline">Editar</button>
+                      <IconEditar onClick={() => { setErro(''); setModal(u) }} />
                     )}
                     {u.id !== me?.id && (me?.papel === 'admin' || u.papel !== 'admin') && (
-                      <button onClick={() => excluir(u)}
-                        className="text-red-400 hover:text-red-300 text-xs underline">Excluir</button>
-                    )}
-                    {me?.papel !== 'admin' && u.papel === 'admin' && (
-                      <span className="text-gray-600 text-xs">—</span>
+                      <IconExcluir onClick={() => excluir(u)} />
                     )}
                   </div>
                 </td>

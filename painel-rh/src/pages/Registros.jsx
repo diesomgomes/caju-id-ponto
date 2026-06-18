@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import L from 'leaflet'
 import { getRegistros, getColaboradores, getFotoUrl, ajustarRegistro, excluirRegistro, getMe } from '../api'
 import Portal from '../components/Portal'
+import { IconVer, IconAjustar, IconExcluir } from '../components/IconBtn'
 
 const TIPOS = ['', 'entrada', 'saida_almoco', 'retorno_almoco', 'saida']
 
@@ -221,17 +222,17 @@ export default function Registros() {
                 <td className="px-4 py-3 text-gray-500">{r.local_nome || '—'}</td>
                 <td className="px-4 py-3">
                   {r.foto_url
-                    ? <button onClick={() => setFotoReg(r)} className="text-emerald-400 hover:text-emerald-300 text-xs underline">Ver</button>
-                    : <span className="text-gray-600">—</span>
+                    ? <IconVer onClick={() => setFotoReg(r)} />
+                    : <span className="text-gray-600 px-1.5">—</span>
                   }
                 </td>
-                <td className="px-4 py-3 flex gap-3 items-center">
-                  <button onClick={() => setAjusteReg(r)} className="text-yellow-400 hover:text-yellow-300 text-xs underline">Ajustar</button>
+                <td className="px-4 py-3 flex gap-1 items-center">
+                  <IconAjustar onClick={() => setAjusteReg(r)} />
                   {me?.papel === 'admin' && (
-                    <button onClick={async () => {
+                    <IconExcluir onClick={async () => {
                       if (!confirm(`Excluir este registro de ${r.colaborador_nome}? Esta ação não pode ser desfeita.`)) return
                       try { await excluirRegistro(r.id); buscar() } catch (e) { alert(e.message) }
-                    }} className="text-red-400 hover:text-red-300 text-xs underline">Excluir</button>
+                    }} />
                   )}
                 </td>
               </tr>

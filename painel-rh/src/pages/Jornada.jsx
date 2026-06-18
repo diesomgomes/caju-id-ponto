@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getJornadas, getColaboradores, exportarJornadas, excluirJornada, getMe } from '../api'
+import { IconExcluir } from '../components/IconBtn'
 
 function fmtHoras(interval) {
   if (!interval) return '—'
@@ -139,10 +140,10 @@ export default function Jornada() {
                   </td>
                   {me?.papel === 'admin' && (
                     <td className="px-4 py-3">
-                      <button onClick={async () => {
+                      <IconExcluir onClick={async () => {
                         if (!confirm(`Excluir jornada de ${j.colaborador_nome} em ${new Date(j.data + 'T12:00:00').toLocaleDateString('pt-BR')}? Esta ação não pode ser desfeita.`)) return
                         try { await excluirJornada(j.id); buscar() } catch (e) { alert(e.message) }
-                      }} className="text-red-400 hover:text-red-300 text-xs underline">Excluir</button>
+                      }} />
                     </td>
                   )}
                 </tr>

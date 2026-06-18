@@ -4,6 +4,7 @@ import {
   getEmpresas, getModelosJornada, getLocais, getLocaisColaborador, setLocaisColaborador,
 } from '../api'
 import Portal from '../components/Portal'
+import { IconEditar, IconExcluir, IconJornada, IconLocais } from '../components/IconBtn'
 
 const DIAS_SEMANA = [
   { key: 'seg', label: 'Seg' },
@@ -488,10 +489,10 @@ export default function Colaboradores() {
                 <td className="px-4 py-3 text-xs text-gray-400">{fmtJornada(c)}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-3">
-                    <button onClick={() => abrirEditar(c)} className="text-blue-400 hover:text-blue-300 text-xs underline">Editar</button>
-                    <button onClick={() => setModalJornada(c)} className="text-emerald-400 hover:text-emerald-300 text-xs underline">Jornada</button>
-                    <button onClick={() => setModalLocais(c)} className="text-yellow-400 hover:text-yellow-300 text-xs underline">Locais</button>
-                    <button onClick={() => excluir(c.id)} className="text-red-400 hover:text-red-300 text-xs underline">Excluir</button>
+                    <IconEditar onClick={() => abrirEditar(c)} />
+                    <IconJornada onClick={() => setModalJornada(c)} />
+                    <IconLocais onClick={() => setModalLocais(c)} />
+                    <IconExcluir onClick={() => excluir(c.id)} />
                   </div>
                 </td>
               </tr>

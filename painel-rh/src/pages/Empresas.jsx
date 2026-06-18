@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getEmpresas, criarEmpresa, atualizarEmpresa, excluirEmpresa } from '../api'
 import Portal from '../components/Portal'
+import { IconEditar, IconExcluir } from '../components/IconBtn'
 
 const VAZIO = { nome: '', cnpj: '', logo_url: '', cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', estado: '' }
 
@@ -154,9 +155,9 @@ export default function Empresas() {
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex gap-3">
-                    <button onClick={() => abrirEditar(e)} className="text-blue-400 hover:text-blue-300 text-xs underline">Editar</button>
-                    <button onClick={() => excluir(e.id)} className="text-red-400 hover:text-red-300 text-xs underline">Desativar</button>
+                  <div className="flex gap-1">
+                    <IconEditar onClick={() => abrirEditar(e)} />
+                    <IconExcluir onClick={() => excluir(e.id)} />
                   </div>
                 </td>
               </tr>
