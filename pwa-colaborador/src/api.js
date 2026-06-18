@@ -12,7 +12,7 @@ export async function loginColaborador(email, senha) {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error_description || data.msg || "Falha no login");
-  return data; // { access_token, refresh_token, user, ... }
+  return data;
 }
 
 export async function logoutColaborador() {
@@ -41,13 +41,41 @@ export function limparSessao() {
   localStorage.removeItem("ponto_session");
 }
 
+async function refreshSession() {
+  const sessao = getSessao();
+  if (!sessao?.refresh_token) return false;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY },
+      body: JSON.stringify({ refresh_token: sessao.refresh_token }),
+    });
+    if (!res.ok) return false;
+    const nova = await res.json();
+    salvarSessao({ ...sessao, ...nova });
+    return true;
+  } catch { return false; }
+}
+
+async function pontoApi(path, opts = {}, _retry = false) {
+  const res = await fetch(`${API_URL}${path}`, {
+    ...opts,
+    headers: { Authorization: `Bearer ${getToken()}`, ...(opts.headers || {}) },
+  });
+  if (res.status === 401 && !_retry) {
+    const renovado = await refreshSession();
+    if (renovado) return pontoApi(path, opts, true);
+    limparSessao();
+    location.reload();
+    return;
+  }
+  return res;
+}
+
 // ---------- Ponto ----------
 
 export async function getStatus() {
-  const res = await fetch(`${API_URL}/ponto/status`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
-  });
-  if (res.status === 401) { limparSessao(); location.reload(); }
+  const res = await pontoApi("/ponto/status");
   if (res.status === 403) {
     const data = await res.json().catch(() => ({}));
     throw new Error(`403: ${data.detail || "Colaborador não vinculado"}`);
@@ -62,36 +90,26 @@ export async function registrarPonto({ tipo, lat, lng, fotoBlob }) {
   form.append("lat", lat);
   form.append("lng", lng);
   form.append("foto", fotoBlob, "selfie.jpg");
-  const res = await fetch(`${API_URL}/ponto/registrar`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${getToken()}` },
-    body: form,
-  });
+  const res = await pontoApi("/ponto/registrar", { method: "POST", body: form });
   const data = await res.json();
   if (!res.ok) throw new Error(data.detail || "Erro ao registrar ponto");
   return data;
 }
 
 export async function getHistorico(mes) {
-  const res = await fetch(`${API_URL}/ponto/historico?mes=${mes}`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
-  });
+  const res = await pontoApi(`/ponto/historico?mes=${mes}`);
   if (!res.ok) throw new Error("Erro ao buscar histórico");
   return res.json();
 }
 
 export async function getSaldo() {
-  const res = await fetch(`${API_URL}/ponto/saldo`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
-  });
+  const res = await pontoApi("/ponto/saldo");
   if (!res.ok) throw new Error("Erro ao buscar saldo");
   return res.json();
 }
 
 export async function getPerfil() {
-  const res = await fetch(`${API_URL}/ponto/perfil`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
-  });
+  const res = await pontoApi("/ponto/perfil");
   if (!res.ok) throw new Error("Erro ao buscar perfil");
   return res.json();
 }

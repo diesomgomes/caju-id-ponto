@@ -49,16 +49,14 @@ export default function Layout() {
   const [empresa, setEmpresa] = useState(null)
 
   useEffect(() => {
-    getMe().then(me => {
+    Promise.all([getMe(), getEmpresas()]).then(([me, emps]) => {
       setMe(me)
       if (me?.empresa_id) {
-        getEmpresas().then(emps => {
-          const emp = emps.find(e => e.id === me.empresa_id)
-          if (emp) {
-            setEmpresa(emp)
-            if (emp.logo_url) setFavicon(emp.logo_url)
-          }
-        }).catch(() => {})
+        const emp = emps.find(e => e.id === me.empresa_id)
+        if (emp) {
+          setEmpresa(emp)
+          if (emp.logo_url) setFavicon(emp.logo_url)
+        }
       }
     }).catch(() => {})
   }, [])

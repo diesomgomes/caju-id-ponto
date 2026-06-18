@@ -18,6 +18,7 @@ export async function loginRH(email, senha) {
 
 export function salvarSessao(data) {
   localStorage.setItem('rh_session', JSON.stringify(data))
+  _meCache = null // invalida cache ao trocar sessão
 }
 
 export function getSessao() {
@@ -30,9 +31,26 @@ export function getToken() {
 
 export function limparSessao() {
   localStorage.removeItem('rh_session')
+  _meCache = null
 }
 
-async function api(path, opts = {}) {
+async function refreshSession() {
+  const sessao = getSessao()
+  if (!sessao?.refresh_token) return false
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
+      body: JSON.stringify({ refresh_token: sessao.refresh_token }),
+    })
+    if (!res.ok) return false
+    const nova = await res.json()
+    salvarSessao({ ...sessao, ...nova })
+    return true
+  } catch { return false }
+}
+
+async function api(path, opts = {}, _retry = false) {
   const token = getToken()
   const res = await fetch(`${API_URL}${path}`, {
     ...opts,
@@ -42,6 +60,13 @@ async function api(path, opts = {}) {
       ...(opts.headers || {}),
     },
   })
+  if (res.status === 401 && !_retry) {
+    const renovado = await refreshSession()
+    if (renovado) return api(path, opts, true)
+    limparSessao()
+    window.location.href = '/login'
+    throw new Error('Sessão expirada')
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw Object.assign(new Error(err.detail || 'Erro na requisição'), { status: res.status })
@@ -49,8 +74,15 @@ async function api(path, opts = {}) {
   return res.json()
 }
 
+// Cache em memória para getMe — evita chamadas duplicadas entre Layout e páginas
+let _meCache = null
+export async function getMe() {
+  if (_meCache) return _meCache
+  _meCache = await api('/rh/me')
+  return _meCache
+}
+
 export const getDashboard = () => api('/rh/dashboard')
-export const getMe = () => api('/rh/me')
 
 export const getUsuarios = () => api('/rh/usuarios')
 export const criarUsuario = (body) => api('/rh/usuarios', { method: 'POST', body: JSON.stringify(body) })
