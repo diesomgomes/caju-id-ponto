@@ -3,45 +3,47 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <meta name="theme-color" content="#0f172a" />
+  <meta name="theme-color" content="#f5f5f7" />
   <title>Saldo de Horas — CAJU ID</title>
   <script src="/config.js"></script>
   <link rel="manifest" href="/manifest.json" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <style>
-    body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, sans-serif; }
+    * { -webkit-tap-highlight-color: transparent; }
+    body { background: #f5f5f7; color: #18181b; font-family: system-ui, -apple-system, sans-serif; }
     .hidden { display: none !important; }
-    .bottom-nav { background: #0f172a; border-top: 1px solid rgba(255,255,255,0.07); }
-    .nav-tab { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 0; flex: 1; cursor: pointer; text-decoration: none; transition: color .15s; }
+    .card { background: #fff; border-radius: 16px; box-shadow: 0 0 0 0.5px rgba(0,0,0,0.08); }
+    .bottom-nav { background: #fff; border-top: 1px solid rgba(0,0,0,0.07); }
+    .nav-tab { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 0; flex: 1; cursor: pointer; text-decoration: none; transition: color .15s; border: none; background: none; }
     .nav-tab .nav-icon { font-size: 20px; line-height: 1; }
-    .nav-tab .nav-label { font-size: 10px; font-weight: 500; letter-spacing: .02em; }
-    .nav-tab.active { color: #10b981; }
-    .nav-tab:not(.active) { color: rgba(255,255,255,0.3); }
+    .nav-tab .nav-label { font-size: 10px; font-weight: 600; letter-spacing: .03em; }
+    .nav-tab.active { color: #059669; }
+    .nav-tab:not(.active) { color: #a1a1aa; }
   </style>
 </head>
 <body class="max-w-md mx-auto flex flex-col min-h-screen">
 
   <!-- Header -->
-  <div class="flex items-center gap-3 px-5 pt-10 pb-4 border-b border-gray-800">
-    <a href="/" class="text-gray-400 text-2xl leading-none">‹</a>
-    <h1 class="font-bold text-white text-xl">⏱ Banco de Horas</h1>
+  <div class="bg-white flex items-center gap-3 px-5 pt-10 pb-4" style="border-bottom:1px solid rgba(0,0,0,0.07)">
+    <a href="/" class="text-2xl leading-none" style="color:#a1a1aa">‹</a>
+    <h1 class="font-bold text-xl" style="color:#18181b">Banco de Horas</h1>
   </div>
 
   <!-- Cards de saldo -->
-  <div class="px-5 py-5 space-y-3" id="cards-saldo">
-    <p class="text-center text-gray-500 py-10">Carregando...</p>
+  <div class="px-4 py-4 space-y-3" id="cards-saldo">
+    <p class="text-center py-10" style="color:#a1a1aa">Carregando...</p>
   </div>
 
   <!-- Gráfico 7 dias -->
-  <div class="px-5 pb-6">
-    <p class="text-gray-400 text-sm font-semibold mb-3 uppercase tracking-wider">Últimos 7 dias</p>
-    <div class="bg-gray-800 rounded-xl p-4">
+  <div class="px-4 pb-4">
+    <p class="text-xs font-semibold uppercase tracking-widest mb-3" style="color:#a1a1aa">Últimos 7 dias</p>
+    <div class="card p-4">
       <canvas id="grafico-7dias" height="160"></canvas>
     </div>
   </div>
 
-  <!-- Abas -->
+  <!-- Bottom nav -->
   <div class="bottom-nav flex mt-auto">
     <a href="/" class="nav-tab">
       <span class="nav-icon">🏠</span><span class="nav-label">Início</span>
@@ -59,15 +61,7 @@
 
   <script type="module">
     import { getToken, getSaldo } from "./src/api.js";
-
     if (!getToken()) { location.href = "/"; }
-
-    function corSaldo(v) {
-      if (v === null || v === undefined) return { txt: "text-gray-400", bg: "bg-gray-700" };
-      return v >= 0
-        ? { txt: "text-emerald-400", bg: "bg-emerald-900/40" }
-        : { txt: "text-red-400",     bg: "bg-red-900/40"     };
-    }
 
     function fmtSaldo(v) {
       if (v === null || v === undefined || v === "—") return "—";
@@ -80,56 +74,54 @@
       try {
         const d = await getSaldo();
         const itens = [
-          { label: "Hoje",         val: d.hoje },
-          { label: "Esta semana",  val: d.semana },
-          { label: "Este mês",     val: d.mes },
-          { label: "Acumulado",    val: d.acumulado },
+          { label: "Hoje",        val: d.hoje,      icon: "📅" },
+          { label: "Esta semana", val: d.semana,    icon: "📆" },
+          { label: "Este mês",    val: d.mes,       icon: "🗓️" },
+          { label: "Acumulado",   val: d.acumulado, icon: "📊" },
         ];
-        container.innerHTML = itens.map(it => {
-          const c = corSaldo(it.val === "—" ? null : it.val);
+        container.innerHTML = `<div class="grid grid-cols-2 gap-3">` + itens.map(it => {
+          const s = String(it.val ?? "—");
+          const positivo = s !== "—" && !s.startsWith("-");
+          const cor = s === "—" ? "#a1a1aa" : positivo ? "#059669" : "#dc2626";
+          const bg  = s === "—" ? "#f4f4f5" : positivo ? "rgba(16,185,129,0.07)" : "rgba(239,68,68,0.07)";
+          const border = s === "—" ? "#e4e4e7" : positivo ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)";
           return `
-            <div class="${c.bg} rounded-xl px-5 py-4 flex justify-between items-center border border-gray-700">
-              <span class="text-gray-300 font-medium">${it.label}</span>
-              <span class="${c.txt} font-bold text-lg font-mono">${fmtSaldo(it.val)}</span>
+            <div class="card p-4" style="border:1px solid ${border};background:${bg}">
+              <p class="text-xs font-semibold uppercase tracking-wider mb-2" style="color:#a1a1aa">${it.icon} ${it.label}</p>
+              <p class="text-2xl font-bold font-mono" style="color:${cor}">${fmtSaldo(it.val)}</p>
             </div>`;
-        }).join("");
+        }).join("") + `</div>`;
 
-        // Gráfico
         if (d.ultimos_7_dias?.length) {
           const labels = d.ultimos_7_dias.map(x => x.data_br);
           const valores = d.ultimos_7_dias.map(x => {
             const s = x.saldo_dia || "00:00:00";
             const neg = s.startsWith("-");
             const [h, m] = s.replace("-", "").split(":");
-            const min = parseInt(h) * 60 + parseInt(m);
-            return neg ? -min : min;
+            return (parseInt(h) * 60 + parseInt(m)) * (neg ? -1 : 1);
           });
           new Chart(document.getElementById("grafico-7dias"), {
             type: "bar",
             data: {
               labels,
-              datasets: [{
-                data: valores,
-                backgroundColor: valores.map(v => v >= 0 ? "#10b981" : "#ef4444"),
-                borderRadius: 6,
-              }],
+              datasets: [{ data: valores, backgroundColor: valores.map(v => v >= 0 ? "#10b981" : "#ef4444"), borderRadius: 6 }],
             },
             options: {
               responsive: true,
               plugins: { legend: { display: false } },
               scales: {
-                x: { ticks: { color: "#9ca3af", font: { size: 11 } }, grid: { display: false } },
+                x: { ticks: { color: "#a1a1aa", font: { size: 11 } }, grid: { display: false } },
                 y: {
-                  ticks: { color: "#9ca3af", font: { size: 11 },
-                    callback: v => `${v >= 0 ? "+" : ""}${Math.floor(Math.abs(v) / 60)}h${String(Math.abs(v) % 60).padStart(2,"0")}` },
-                  grid: { color: "#374151" },
+                  ticks: { color: "#a1a1aa", font: { size: 11 },
+                    callback: v => `${v >= 0 ? "+" : ""}${Math.floor(Math.abs(v)/60)}h${String(Math.abs(v)%60).padStart(2,"0")}` },
+                  grid: { color: "rgba(0,0,0,0.05)" },
                 },
               },
             },
           });
         }
       } catch (e) {
-        container.innerHTML = `<p class="text-center text-red-400 py-10">${e.message}</p>`;
+        container.innerHTML = `<p class="text-center py-10" style="color:#dc2626">${e.message}</p>`;
       }
     }
 

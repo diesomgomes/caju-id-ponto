@@ -3,62 +3,57 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <meta name="theme-color" content="#10b981" />
+  <meta name="theme-color" content="#f5f5f7" />
   <title>Comprovante — CAJU ID</title>
   <script src="/config.js"></script>
   <link rel="manifest" href="/manifest.json" />
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body { background-color: #111827; color: #f9fafb; font-family: system-ui, sans-serif; }
+    * { -webkit-tap-highlight-color: transparent; }
+    body { background: #f5f5f7; color: #18181b; font-family: system-ui, -apple-system, sans-serif; }
     .hidden { display: none !important; }
+    .card { background: #fff; border-radius: 16px; box-shadow: 0 0 0 0.5px rgba(0,0,0,0.08); }
+    .bottom-nav { background: #fff; border-top: 1px solid rgba(0,0,0,0.07); }
+    .nav-tab { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 0; flex: 1; cursor: pointer; text-decoration: none; transition: color .15s; border: none; background: none; }
+    .nav-tab .nav-icon { font-size: 20px; line-height: 1; }
+    .nav-tab .nav-label { font-size: 10px; font-weight: 600; letter-spacing: .03em; }
+    .nav-tab.active { color: #059669; }
+    .nav-tab:not(.active) { color: #a1a1aa; }
     @media print {
       body { background: #fff !important; color: #000 !important; }
       .no-print { display: none !important; }
-      .print-card { background: #fff !important; border: 1px solid #ccc !important; color: #000 !important; }
-      .print-header { background: #fff !important; color: #000 !important; border-bottom: 2px solid #000 !important; }
-      .print-label { color: #555 !important; }
-      .print-value { color: #000 !important; }
-      .print-table th { background: #f3f4f6 !important; color: #000 !important; border: 1px solid #ccc !important; }
-      .print-table td { border: 1px solid #ddd !important; color: #000 !important; }
-      .print-saldo-pos { color: #166534 !important; }
-      .print-saldo-neg { color: #991b1b !important; }
+      .card { box-shadow: none !important; border: 1px solid #e4e4e7 !important; }
     }
   </style>
 </head>
 <body class="max-w-2xl mx-auto flex flex-col min-h-screen">
 
   <!-- Header -->
-  <div class="flex items-center justify-between px-5 pt-10 pb-4 border-b border-gray-800 no-print">
+  <div class="bg-white flex items-center justify-between px-5 pt-10 pb-4 no-print" style="border-bottom:1px solid rgba(0,0,0,0.07)">
     <div class="flex items-center gap-3">
-      <a href="/" class="text-gray-400 text-2xl leading-none">‹</a>
-      <h1 class="font-bold text-white text-xl">📄 Comprovante</h1>
+      <a href="/" class="text-2xl leading-none" style="color:#a1a1aa">‹</a>
+      <h1 class="font-bold text-xl" style="color:#18181b">Comprovante</h1>
     </div>
-    <button onclick="window.print()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-4 py-2 rounded-lg">
+    <button onclick="window.print()"
+      class="text-sm font-semibold px-4 py-2 rounded-xl text-white transition"
+      style="background:#059669">
       Imprimir
     </button>
   </div>
 
   <!-- Seletor de mês -->
-  <div class="flex items-center justify-between px-5 py-4 border-b border-gray-800 no-print">
-    <button id="btn-mes-ant" class="text-gray-400 hover:text-white text-xl px-2">‹</button>
-    <p id="label-mes" class="font-semibold text-white capitalize"></p>
-    <button id="btn-mes-prox" class="text-gray-400 hover:text-white text-xl px-2">›</button>
+  <div class="bg-white flex items-center justify-between px-5 py-3 no-print" style="border-bottom:1px solid rgba(0,0,0,0.07)">
+    <button id="btn-mes-ant" class="w-8 h-8 rounded-lg flex items-center justify-center text-xl" style="color:#71717a;background:#f4f4f5">‹</button>
+    <p id="label-mes" class="font-semibold capitalize" style="color:#18181b"></p>
+    <button id="btn-mes-prox" class="w-8 h-8 rounded-lg flex items-center justify-center text-xl" style="color:#71717a;background:#f4f4f5">›</button>
   </div>
 
   <!-- Conteúdo do comprovante -->
-  <div id="conteudo" class="flex-1 px-5 py-6 space-y-5">
-    <p class="text-center text-gray-500 py-10">Carregando...</p>
+  <div id="conteudo" class="flex-1 px-4 py-4 space-y-3">
+    <p class="text-center py-10" style="color:#a1a1aa">Carregando...</p>
   </div>
 
-  <!-- Abas -->
-  <style>
-    .bottom-nav { background: #111827; border-top: 1px solid rgba(255,255,255,0.07); }
-    .nav-tab { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 0; flex: 1; cursor: pointer; text-decoration: none; transition: color .15s; }
-    .nav-tab .nav-icon { font-size: 20px; line-height: 1; }
-    .nav-tab .nav-label { font-size: 10px; font-weight: 500; letter-spacing: .02em; }
-    .nav-tab.active { color: #10b981; }
-    .nav-tab:not(.active) { color: rgba(255,255,255,0.3); }
-  </style>
+  <!-- Bottom nav -->
   <div class="bottom-nav flex mt-auto no-print">
     <a href="/" class="nav-tab">
       <span class="nav-icon">🏠</span><span class="nav-label">Início</span>
@@ -75,8 +70,7 @@
   </div>
 
   <script type="module">
-    import { getToken, limparSessao, getPerfil, getHistorico } from "./src/api.js";
-
+    import { getToken, getPerfil, getHistorico } from "./src/api.js";
     if (!getToken()) { location.href = "/"; }
 
     let mesAtual = new Date().toISOString().slice(0, 7);
@@ -106,8 +100,8 @@
         partes.push(linha);
       }
       if (e.bairro) partes.push(e.bairro);
-      const cidadeEstado = [e.cidade, e.estado].filter(Boolean).join(" — ");
-      if (cidadeEstado) partes.push(cidadeEstado);
+      const cidEst = [e.cidade, e.estado].filter(Boolean).join(" — ");
+      if (cidEst) partes.push(cidEst);
       if (e.cep) partes.push(`CEP: ${e.cep}`);
       return partes.join(", ");
     }
@@ -119,10 +113,26 @@
       saida:          { label: "Saída",          emoji: "🔴" },
     };
 
-    function saldoCor(s) {
-      if (!s) return "";
-      return s.startsWith("-") ? "text-red-400 print-saldo-neg" : "text-emerald-400 print-saldo-pos";
+    function parseHHMM(str) {
+      if (!str) return 0;
+      const neg = str.startsWith("-");
+      const [h, m] = str.replace("-", "").split(":");
+      return (parseInt(h) * 60 + parseInt(m || 0)) * (neg ? -1 : 1);
     }
+
+    function fmtMin(totalMin) {
+      const neg = totalMin < 0;
+      const abs = Math.abs(totalMin);
+      const h = Math.floor(abs / 60);
+      const m = abs % 60;
+      return `${neg ? "-" : "+"}${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
+    }
+
+    function saldoStyle(s) {
+      if (!s) return "";
+      return s.startsWith("-") ? "color:#dc2626;font-weight:700" : "color:#059669;font-weight:700";
+    }
+
     function saldoSinal(s) {
       if (!s) return "—";
       return (s.startsWith("-") ? "" : "+") + s;
@@ -131,7 +141,7 @@
     async function carregar() {
       document.getElementById("label-mes").textContent = formatarMes(mesAtual);
       const conteudo = document.getElementById("conteudo");
-      conteudo.innerHTML = `<p class="text-center text-gray-500 py-10">Carregando...</p>`;
+      conteudo.innerHTML = `<p class="text-center py-10" style="color:#a1a1aa">Carregando...</p>`;
 
       try {
         const [perfil, historico] = await Promise.all([getPerfil(), getHistorico(mesAtual)]);
@@ -143,115 +153,94 @@
           day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit"
         });
 
-        // Totais
-        function parseHHMM(str) {
-          if (!str) return 0;
-          const neg = str.startsWith("-");
-          const [h, m] = str.replace("-", "").split(":");
-          const min = parseInt(h) * 60 + parseInt(m || 0);
-          return neg ? -min : min;
-        }
-        function fmtMin(totalMin) {
-          const neg = totalMin < 0;
-          const abs = Math.abs(totalMin);
-          const h = Math.floor(abs / 60);
-          const m = abs % 60;
-          return `${neg ? "-" : "+"}${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
-        }
-
         const totalSaldoMin = dias.reduce((acc, d) => acc + parseHHMM(d.saldo_dia), 0);
         const totalTrabalhadoMin = dias.reduce((acc, d) => acc + parseHHMM(d.horas_trabalhadas), 0);
 
         const tabelaLinhas = dias.map(dia => {
           const batidasStr = (dia.registros || []).map(r =>
-            `<span class="inline-block mr-2 whitespace-nowrap">${TIPO_INFO[r.tipo]?.emoji || ""} ${hora(r.registrado_em)}</span>`
+            `<span class="inline-block mr-1 whitespace-nowrap text-xs">${TIPO_INFO[r.tipo]?.emoji || ""} ${hora(r.registrado_em)}</span>`
           ).join("");
 
-          const saldoClass = saldoCor(dia.saldo_dia);
           return `
-            <tr class="border-b border-gray-700/50 text-sm">
-              <td class="px-3 py-2 text-gray-300 whitespace-nowrap print-value">${dia.data_br}</td>
-              <td class="px-3 py-2 text-gray-400 print-value">${batidasStr || '<span class="text-red-400">Sem registro</span>'}</td>
-              <td class="px-3 py-2 text-gray-300 text-center font-mono print-value">${dia.horas_trabalhadas?.slice(0,5) || "—"}</td>
-              <td class="px-3 py-2 font-mono font-bold text-center ${saldoClass} print-value">${saldoSinal(dia.saldo_dia?.slice(0,5) || null)}</td>
+            <tr style="border-bottom:1px solid #f4f4f5">
+              <td class="px-3 py-2.5 text-xs font-medium whitespace-nowrap" style="color:#18181b">${dia.data_br}</td>
+              <td class="px-3 py-2.5" style="color:#71717a">${batidasStr || '<span class="text-xs" style="color:#dc2626">Sem registro</span>'}</td>
+              <td class="px-3 py-2.5 text-center font-mono text-xs" style="color:#18181b">${dia.horas_trabalhadas?.slice(0,5) || "—"}</td>
+              <td class="px-3 py-2.5 text-center font-mono text-xs" style="${saldoStyle(dia.saldo_dia)}">${saldoSinal(dia.saldo_dia?.slice(0,5) || null)}</td>
             </tr>`;
-        }).join("") || `<tr><td colspan="4" class="px-3 py-6 text-center text-gray-500">Nenhum registro neste mês.</td></tr>`;
+        }).join("") || `<tr><td colspan="4" class="px-3 py-8 text-center text-sm" style="color:#a1a1aa">Nenhum registro neste mês.</td></tr>`;
 
         conteudo.innerHTML = `
-          <!-- Cabeçalho do comprovante -->
-          <div class="print-card bg-gray-900 rounded-xl border border-gray-800 p-5">
-            <div class="print-header border-b border-gray-700 pb-4 mb-4">
-              <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Comprovante de Registros de Ponto</p>
-              <p class="text-lg font-bold text-white">${e.nome || "—"}</p>
-              ${e.cnpj ? `<p class="text-sm text-gray-400">CNPJ: ${e.cnpj}</p>` : ""}
-              ${endereco ? `<p class="text-xs text-gray-500 mt-1">${endereco}</p>` : ""}
-            </div>
+          <!-- Cabeçalho -->
+          <div class="card p-5">
+            <p class="text-xs font-semibold uppercase tracking-widest mb-1" style="color:#a1a1aa">Comprovante de Registros de Ponto</p>
+            <p class="text-lg font-bold" style="color:#18181b">${e.nome || "—"}</p>
+            ${e.cnpj ? `<p class="text-sm" style="color:#71717a">CNPJ: ${e.cnpj}</p>` : ""}
+            ${endereco ? `<p class="text-xs mt-1" style="color:#a1a1aa">${endereco}</p>` : ""}
 
-            <div class="grid grid-cols-2 gap-3 text-sm">
+            <div class="mt-4 pt-4 grid grid-cols-2 gap-3 text-sm" style="border-top:1px solid #f4f4f5">
               <div>
-                <p class="print-label text-xs text-gray-500">Colaborador</p>
-                <p class="print-value font-semibold text-gray-100">${c.nome || "—"}</p>
+                <p class="text-xs font-semibold uppercase tracking-wider mb-0.5" style="color:#a1a1aa">Colaborador</p>
+                <p class="font-semibold" style="color:#18181b">${c.nome || "—"}</p>
               </div>
               <div>
-                <p class="print-label text-xs text-gray-500">Cargo</p>
-                <p class="print-value text-gray-300">${c.cargo || "—"}</p>
+                <p class="text-xs font-semibold uppercase tracking-wider mb-0.5" style="color:#a1a1aa">Cargo</p>
+                <p style="color:#71717a">${c.cargo || "—"}</p>
               </div>
               <div>
-                <p class="print-label text-xs text-gray-500">CPF</p>
-                <p class="print-value font-mono text-gray-300">${c.cpf || "—"}</p>
+                <p class="text-xs font-semibold uppercase tracking-wider mb-0.5" style="color:#a1a1aa">CPF</p>
+                <p class="font-mono" style="color:#71717a">${c.cpf || "—"}</p>
               </div>
               <div>
-                <p class="print-label text-xs text-gray-500">PIS/PASEP</p>
-                <p class="print-value font-mono text-gray-300">${c.pis || "—"}</p>
+                <p class="text-xs font-semibold uppercase tracking-wider mb-0.5" style="color:#a1a1aa">PIS/PASEP</p>
+                <p class="font-mono" style="color:#71717a">${c.pis || "—"}</p>
               </div>
               ${c.departamento ? `<div class="col-span-2">
-                <p class="print-label text-xs text-gray-500">Departamento</p>
-                <p class="print-value text-gray-300">${c.departamento}</p>
+                <p class="text-xs font-semibold uppercase tracking-wider mb-0.5" style="color:#a1a1aa">Departamento</p>
+                <p style="color:#71717a">${c.departamento}</p>
               </div>` : ""}
             </div>
 
-            <div class="mt-4 pt-3 border-t border-gray-700 flex justify-between items-center text-xs text-gray-500">
-              <span>Competência: <strong class="text-gray-300 capitalize">${formatarMes(mesAtual)}</strong></span>
+            <div class="mt-4 pt-3 flex justify-between items-center text-xs" style="border-top:1px solid #f4f4f5;color:#a1a1aa">
+              <span>Competência: <strong class="capitalize" style="color:#71717a">${formatarMes(mesAtual)}</strong></span>
               <span>Gerado em ${geradoEm}</span>
             </div>
           </div>
 
-          <!-- Resumo do mês -->
+          <!-- Resumo -->
           <div class="grid grid-cols-2 gap-3">
-            <div class="print-card bg-gray-900 rounded-xl border border-gray-800 p-4 text-center">
-              <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Total trabalhado</p>
-              <p class="text-xl font-bold font-mono text-white">${fmtMin(totalTrabalhadoMin).replace("+","")}</p>
+            <div class="card p-4 text-center">
+              <p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#a1a1aa">Total trabalhado</p>
+              <p class="text-2xl font-bold font-mono" style="color:#18181b">${fmtMin(totalTrabalhadoMin).replace("+","")}</p>
             </div>
-            <div class="print-card bg-gray-900 rounded-xl border border-gray-800 p-4 text-center">
-              <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Saldo do mês</p>
-              <p class="text-xl font-bold font-mono ${totalSaldoMin >= 0 ? 'text-emerald-400' : 'text-red-400'}">${fmtMin(totalSaldoMin)}</p>
+            <div class="card p-4 text-center">
+              <p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#a1a1aa">Saldo do mês</p>
+              <p class="text-2xl font-bold font-mono" style="color:${totalSaldoMin >= 0 ? '#059669' : '#dc2626'}">${fmtMin(totalSaldoMin)}</p>
             </div>
           </div>
 
-          <!-- Tabela de registros -->
-          <div class="print-card bg-gray-900 rounded-xl border border-gray-800 overflow-auto">
-            <table class="w-full text-sm print-table">
+          <!-- Tabela -->
+          <div class="card overflow-auto">
+            <table class="w-full text-sm">
               <thead>
-                <tr class="border-b border-gray-700 text-left text-gray-400 text-xs uppercase tracking-wider">
+                <tr class="text-left text-xs font-semibold uppercase tracking-wider" style="color:#a1a1aa;border-bottom:1px solid #f4f4f5">
                   <th class="px-3 py-3">Data</th>
                   <th class="px-3 py-3">Registros</th>
                   <th class="px-3 py-3 text-center">Trabalhado</th>
                   <th class="px-3 py-3 text-center">Saldo</th>
                 </tr>
               </thead>
-              <tbody>
-                ${tabelaLinhas}
-              </tbody>
+              <tbody>${tabelaLinhas}</tbody>
             </table>
           </div>
 
           <!-- Rodapé -->
-          <div class="text-center text-xs text-gray-600 pb-4">
+          <p class="text-center text-xs pb-4" style="color:#a1a1aa">
             Documento gerado pelo sistema CAJU ID — Ponto Eletrônico
-          </div>
+          </p>
         `;
       } catch (err) {
-        conteudo.innerHTML = `<p class="text-center text-red-400 py-10">${err.message}</p>`;
+        conteudo.innerHTML = `<p class="text-center py-10" style="color:#dc2626">${err.message}</p>`;
       }
     }
 

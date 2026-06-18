@@ -109,20 +109,35 @@ async function carregarHome() {
   }
 }
 
+const TIPO_COR_BADGE = {
+  entrada:        { bg: 'rgba(16,185,129,0.1)',  border: 'rgba(16,185,129,0.35)',  cor: '#059669' },
+  saida_almoco:   { bg: 'rgba(234,179,8,0.1)',   border: 'rgba(234,179,8,0.35)',   cor: '#a16207' },
+  retorno_almoco: { bg: 'rgba(59,130,246,0.1)',  border: 'rgba(59,130,246,0.35)',  cor: '#1d4ed8' },
+  saida:          { bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.35)',   cor: '#dc2626' },
+};
+
 function atualizarBotaoPonto(proximos) {
   const btn = document.getElementById("btn-ponto");
+  const badge = document.getElementById("tipo-ponto");
   if (!proximos || proximos.length === 0) {
-    btn.textContent = "✅  Jornada encerrada";
-    btn.className = "w-full py-5 rounded-2xl text-lg font-bold text-white bg-slate-600 cursor-not-allowed";
+    btn.textContent = "Jornada encerrada";
+    btn.className = "w-full py-5 rounded-2xl text-lg font-bold cursor-not-allowed";
+    btn.style.cssText = "background:#e4e4e7;color:#a1a1aa";
     btn.disabled = true;
     tipoAtual = null;
+    if (badge) badge.innerHTML = '';
     return;
   }
   tipoAtual = proximos[0];
   const info = TIPO_LABEL[tipoAtual];
-  btn.textContent = `${info.emoji}  ${info.label}`;
-  btn.className = `w-full py-5 rounded-2xl text-lg font-bold text-white transition ${info.cor}`;
+  const c = TIPO_COR_BADGE[tipoAtual] || TIPO_COR_BADGE.entrada;
+  btn.textContent = "Registrar Ponto";
+  btn.style.cssText = "";
+  btn.className = "w-full py-5 rounded-2xl text-lg font-bold text-white bg-emerald-500 hover:bg-emerald-600 transition shadow-sm";
   btn.disabled = false;
+  if (badge) {
+    badge.innerHTML = `<span style="display:inline-flex;align-items:center;gap:7px;padding:6px 20px;border-radius:999px;background:${c.bg};border:1px solid ${c.border};font-size:13px;font-weight:600;color:${c.cor}">${info.emoji} ${info.label}</span>`;
+  }
 }
 
 function atualizarUltimaBatida(batida) {
@@ -218,8 +233,8 @@ function mostrarResultado(resp, erroMsg) {
     box.innerHTML = `
       <div class="text-center">
         <p class="text-5xl mb-3">❌</p>
-        <p class="font-bold text-lg text-red-400">Erro</p>
-        <p class="mt-2 text-sm text-slate-400">${erroMsg}</p>
+        <p class="font-bold text-lg" style="color:#dc2626">Erro</p>
+        <p class="mt-2 text-sm" style="color:#71717a">${erroMsg}</p>
       </div>`;
     return;
   }
@@ -231,20 +246,20 @@ function mostrarResultado(resp, erroMsg) {
     const j = resp.jornada_hoje;
     const positivo = !j.saldo_dia.startsWith("-");
     jornadaHtml = `
-      <div class="mt-4 rounded-xl p-3 text-sm text-left space-y-1" style="background:rgba(255,255,255,0.05)">
-        <p class="text-slate-400">⏱ Trabalhado: <span class="font-bold text-white">${j.horas_trabalhadas}</span></p>
-        <p class="text-slate-400">🎯 Esperado: <span class="font-bold text-white">${j.horas_esperadas}</span></p>
-        <p class="text-slate-400">📊 Saldo: <span class="font-bold ${positivo ? "text-emerald-400" : "text-red-400"}">${positivo ? "+" : ""}${j.saldo_dia}</span></p>
+      <div class="mt-4 rounded-xl p-3 text-sm text-left space-y-1.5" style="background:#f4f4f5;border:1px solid #e4e4e7">
+        <p style="color:#71717a">⏱ Trabalhado: <span class="font-bold" style="color:#18181b">${j.horas_trabalhadas}</span></p>
+        <p style="color:#71717a">🎯 Esperado: <span class="font-bold" style="color:#18181b">${j.horas_esperadas}</span></p>
+        <p style="color:#71717a">📊 Saldo: <span class="font-bold" style="color:${positivo ? "#059669" : "#dc2626"}">${positivo ? "+" : ""}${j.saldo_dia}</span></p>
       </div>`;
   }
   box.innerHTML = `
     <div class="text-center">
       <p class="text-5xl mb-3">${valido ? "✅" : "⚠️"}</p>
-      <p class="font-bold text-xl">${valido ? "Ponto registrado!" : "Registro salvo (fora da área)"}</p>
-      <p class="text-slate-400 mt-1">${info?.emoji || ""} ${info?.label || resp.tipo}</p>
-      <p class="text-3xl font-mono font-bold mt-3">${hora}</p>
-      ${resp.local_nome ? `<p class="text-sm text-emerald-400 mt-2">📍 ${resp.local_nome} (${resp.distancia_metros?.toFixed(0)}m)</p>` : ""}
-      ${resp.motivo_rejeicao ? `<p class="text-sm text-yellow-400 mt-2">⚠️ ${resp.motivo_rejeicao}</p>` : ""}
+      <p class="font-bold text-xl" style="color:#18181b">${valido ? "Ponto registrado!" : "Registro salvo (fora da área)"}</p>
+      <p class="mt-1" style="color:#71717a">${info?.emoji || ""} ${info?.label || resp.tipo}</p>
+      <p class="text-3xl font-mono font-bold mt-3" style="color:#18181b">${hora}</p>
+      ${resp.local_nome ? `<p class="text-sm mt-2" style="color:#059669">📍 ${resp.local_nome} (${resp.distancia_metros?.toFixed(0)}m)</p>` : ""}
+      ${resp.motivo_rejeicao ? `<p class="text-sm mt-2" style="color:#d97706">⚠️ ${resp.motivo_rejeicao}</p>` : ""}
       ${jornadaHtml}
     </div>`;
 }

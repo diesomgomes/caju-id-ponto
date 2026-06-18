@@ -3,43 +3,45 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <meta name="theme-color" content="#0f172a" />
+  <meta name="theme-color" content="#f5f5f7" />
   <title>Meu Ponto — CAJU ID</title>
   <script src="/config.js"></script>
   <link rel="manifest" href="/manifest.json" />
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, sans-serif; }
+    * { -webkit-tap-highlight-color: transparent; }
+    body { background: #f5f5f7; color: #18181b; font-family: system-ui, -apple-system, sans-serif; }
     .hidden { display: none !important; }
-    .bottom-nav { background: #0f172a; border-top: 1px solid rgba(255,255,255,0.07); }
-    .nav-tab { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 0; flex: 1; cursor: pointer; text-decoration: none; transition: color .15s; }
+    .card { background: #fff; border-radius: 16px; box-shadow: 0 0 0 0.5px rgba(0,0,0,0.08); }
+    .bottom-nav { background: #fff; border-top: 1px solid rgba(0,0,0,0.07); }
+    .nav-tab { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 0; flex: 1; cursor: pointer; text-decoration: none; transition: color .15s; border: none; background: none; }
     .nav-tab .nav-icon { font-size: 20px; line-height: 1; }
-    .nav-tab .nav-label { font-size: 10px; font-weight: 500; letter-spacing: .02em; }
-    .nav-tab.active { color: #10b981; }
-    .nav-tab:not(.active) { color: rgba(255,255,255,0.3); }
+    .nav-tab .nav-label { font-size: 10px; font-weight: 600; letter-spacing: .03em; }
+    .nav-tab.active { color: #059669; }
+    .nav-tab:not(.active) { color: #a1a1aa; }
   </style>
 </head>
 <body class="max-w-md mx-auto flex flex-col min-h-screen">
 
   <!-- Header -->
-  <div class="flex items-center gap-3 px-5 pt-10 pb-4 border-b border-gray-800">
-    <a href="/" class="text-gray-400 text-2xl leading-none">‹</a>
-    <h1 class="font-bold text-white text-xl">📋 Meu Ponto</h1>
+  <div class="bg-white flex items-center gap-3 px-5 pt-10 pb-4" style="border-bottom:1px solid rgba(0,0,0,0.07)">
+    <a href="/" class="text-2xl leading-none" style="color:#a1a1aa">‹</a>
+    <h1 class="font-bold text-xl" style="color:#18181b">Meu Ponto</h1>
   </div>
 
   <!-- Seletor de mês -->
-  <div class="flex items-center justify-between px-5 py-4 border-b border-gray-800">
-    <button id="btn-mes-ant" class="text-gray-400 hover:text-white text-xl px-2">‹</button>
-    <p id="label-mes" class="font-semibold text-white capitalize"></p>
-    <button id="btn-mes-prox" class="text-gray-400 hover:text-white text-xl px-2">›</button>
+  <div class="bg-white flex items-center justify-between px-5 py-3" style="border-bottom:1px solid rgba(0,0,0,0.07)">
+    <button id="btn-mes-ant" class="w-8 h-8 rounded-lg flex items-center justify-center text-xl" style="color:#71717a;background:#f4f4f5">‹</button>
+    <p id="label-mes" class="font-semibold capitalize" style="color:#18181b"></p>
+    <button id="btn-mes-prox" class="w-8 h-8 rounded-lg flex items-center justify-center text-xl" style="color:#71717a;background:#f4f4f5">›</button>
   </div>
 
   <!-- Lista de dias -->
   <div id="lista-dias" class="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-    <p class="text-center text-gray-500 py-10">Carregando...</p>
+    <p class="text-center py-10" style="color:#a1a1aa">Carregando...</p>
   </div>
 
-  <!-- Abas -->
+  <!-- Bottom nav -->
   <div class="bottom-nav flex">
     <a href="/" class="nav-tab">
       <span class="nav-icon">🏠</span><span class="nav-label">Início</span>
@@ -56,8 +58,7 @@
   </div>
 
   <script type="module">
-    import { getToken, limparSessao, getHistorico } from "./src/api.js";
-
+    import { getToken, getHistorico } from "./src/api.js";
     if (!getToken()) { location.href = "/"; }
 
     const TIPO_INFO = {
@@ -67,7 +68,7 @@
       saida:          { label: "Saída",          emoji: "🔴" },
     };
 
-    let mesAtual = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+    let mesAtual = new Date().toISOString().slice(0, 7);
 
     function formatarMes(ym) {
       const [y, m] = ym.split("-");
@@ -85,48 +86,42 @@
       return new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
     }
 
-    function saldoCor(saldo) {
-      if (!saldo) return "text-gray-400";
-      return saldo.startsWith("-") ? "text-red-400" : "text-emerald-400";
-    }
-
     async function carregar() {
       document.getElementById("label-mes").textContent = formatarMes(mesAtual);
       const lista = document.getElementById("lista-dias");
-      lista.innerHTML = `<p class="text-center text-gray-500 py-10">Carregando...</p>`;
+      lista.innerHTML = `<p class="text-center py-10" style="color:#a1a1aa">Carregando...</p>`;
       try {
         const dados = await getHistorico(mesAtual);
         if (!dados.dias || dados.dias.length === 0) {
-          lista.innerHTML = `<p class="text-center text-gray-500 py-10">Nenhum registro neste mês.</p>`;
+          lista.innerHTML = `<p class="text-center py-10" style="color:#a1a1aa">Nenhum registro neste mês.</p>`;
           return;
         }
         lista.innerHTML = dados.dias.map(dia => {
-          const batidas = (dia.registros || []).map(r =>
-            `<div class="flex justify-between text-sm py-0.5">
-               <span class="text-gray-300">${TIPO_INFO[r.tipo]?.emoji || ""} ${TIPO_INFO[r.tipo]?.label || r.tipo}</span>
-               <span class="font-mono text-gray-100">${hora(r.registrado_em)}</span>
-             </div>`
-          ).join("");
-          const semBatidas = !dia.registros?.length
-            ? `<p class="text-sm text-red-400">Sem registros</p>` : "";
-          const saldoStr = dia.saldo_dia
-            ? `<span class="${saldoCor(dia.saldo_dia)} font-bold text-sm">${dia.saldo_dia.startsWith("-") ? "" : "+"}${dia.saldo_dia}</span>`
-            : "";
+          const temSaldo = !!dia.saldo_dia;
+          const positivo = temSaldo && !dia.saldo_dia.startsWith("-");
+          const saldoCor = positivo ? "#059669" : "#dc2626";
+          const saldoSinal = positivo ? "+" : "";
+
+          const batidas = (dia.registros || []).map(r => `
+            <div class="flex justify-between items-center py-1.5" style="border-bottom:1px solid #f4f4f5">
+              <span class="text-sm" style="color:#71717a">${TIPO_INFO[r.tipo]?.emoji || ""} ${TIPO_INFO[r.tipo]?.label || r.tipo}</span>
+              <span class="font-mono font-semibold text-sm" style="color:#18181b">${hora(r.registrado_em)}</span>
+            </div>`).join("");
+
           return `
-            <div class="bg-gray-800 rounded-xl p-4">
+            <div class="card p-4">
               <div class="flex justify-between items-center mb-2">
-                <p class="font-semibold text-white text-sm">${dia.data_br}</p>
-                ${saldoStr}
+                <p class="font-semibold text-sm" style="color:#18181b">${dia.data_br}</p>
+                <div class="flex items-center gap-2">
+                  ${dia.horas_trabalhadas ? `<span class="text-xs" style="color:#a1a1aa">⏱ ${dia.horas_trabalhadas.slice(0,5)}</span>` : ""}
+                  ${temSaldo ? `<span class="text-xs font-bold font-mono" style="color:${saldoCor}">${saldoSinal}${dia.saldo_dia.slice(0,5)}</span>` : ""}
+                </div>
               </div>
-              ${batidas}
-              ${semBatidas}
-              ${dia.horas_trabalhadas
-                ? `<p class="text-xs text-gray-500 mt-2">⏱ ${dia.horas_trabalhadas} trabalhadas</p>`
-                : ""}
+              ${batidas || `<p class="text-sm" style="color:#dc2626">Sem registros</p>`}
             </div>`;
         }).join("");
       } catch (e) {
-        lista.innerHTML = `<p class="text-center text-red-400 py-10">${e.message}</p>`;
+        lista.innerHTML = `<p class="text-center py-10" style="color:#dc2626">${e.message}</p>`;
       }
     }
 
