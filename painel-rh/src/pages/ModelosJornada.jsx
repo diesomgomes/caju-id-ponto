@@ -15,6 +15,8 @@ const VAZIO = {
   hora_inicio_almoco: '12:00', hora_fim_almoco: '13:00',
   dias_trabalho: 'seg,ter,qua,qui,sex',
   almoco_ativo: true,
+  tolerancia_entrada_minutos: 5,
+  tolerancia_saida_minutos: 5,
 }
 
 function toMins(hhmm) {
@@ -161,6 +163,27 @@ function ModalModelo({ titulo, dados, onChange, onSalvar, onFechar, loading, err
           )}
         </div>
 
+        {/* Tolerância */}
+        <div className="border border-gray-800 rounded-xl p-4 space-y-3">
+          <p className="text-sm text-gray-300 font-medium">Tolerância de ponto</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Entrada (min)</label>
+              <input type="number" min="0" max="60" value={dados.tolerancia_entrada_minutos ?? 5}
+                onChange={e => onChange('tolerancia_entrada_minutos', Number(e.target.value))}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+              <p className="text-xs text-gray-600 mt-1">Atraso tolerado na entrada</p>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Saída (min)</label>
+              <input type="number" min="0" max="60" value={dados.tolerancia_saida_minutos ?? 5}
+                onChange={e => onChange('tolerancia_saida_minutos', Number(e.target.value))}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+              <p className="text-xs text-gray-600 mt-1">Saída antecipada tolerada</p>
+            </div>
+          </div>
+        </div>
+
         <div className="bg-emerald-900/20 border border-emerald-800/40 rounded-lg p-3 text-xs text-gray-400">
           <span className="text-emerald-400 font-medium">Resumo: </span>
           {fmtDias(dados.dias_trabalho)}
@@ -234,6 +257,8 @@ export default function ModelosJornada() {
         hora_fim_almoco: form.almoco_ativo ? form.hora_fim_almoco + ':00' : null,
         dias_trabalho: form.dias_trabalho,
         carga_horaria_diaria: form.carga_horaria_diaria,
+        tolerancia_entrada_minutos: form.tolerancia_entrada_minutos ?? 5,
+        tolerancia_saida_minutos: form.tolerancia_saida_minutos ?? 5,
       }
       if (modal === 'criar') await criarModeloJornada(payload)
       else await atualizarModeloJornada(modal.id, payload)
@@ -267,6 +292,7 @@ export default function ModelosJornada() {
               <th className="px-4 py-3">Horário</th>
               <th className="px-4 py-3">Dias</th>
               <th className="px-4 py-3">Carga</th>
+              <th className="px-4 py-3">Tolerância</th>
               <th className="px-4 py-3">Ações</th>
             </tr>
           </thead>
@@ -283,6 +309,9 @@ export default function ModelosJornada() {
                 </td>
                 <td className="px-4 py-3 text-xs text-gray-400">{fmtDias(m.dias_trabalho)}</td>
                 <td className="px-4 py-3 text-xs text-emerald-400">{m.carga_horaria_diaria?.slice(0, 5)}h/dia</td>
+                <td className="px-4 py-3 text-xs text-gray-400">
+                  +{m.tolerancia_entrada_minutos ?? 5}min / -{m.tolerancia_saida_minutos ?? 5}min
+                </td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1">
                     <IconEditar onClick={() => abrirEditar(m)} />
