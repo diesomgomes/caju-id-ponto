@@ -18,7 +18,7 @@ const NAV_SECTIONS = [
       { to: '/empresas', label: 'Cadastro de empresas' },
       { to: '/modelos-jornada', label: 'Cadastro de Jornadas' },
       { to: '/usuarios', label: 'Cadastro de usuários' },
-      { to: '/feriados', label: 'Feriados e dias não úteis' },
+      { to: '/feriados', label: 'Cadastro de feriados' },
     ],
   },
 ]
@@ -31,7 +31,7 @@ const PAGE_LABELS = {
   '/empresas': 'Cadastro de empresas',
   '/modelos-jornada': 'Cadastro de Jornadas',
   '/usuarios': 'Cadastro de usuários',
-  '/feriados': 'Feriados e dias não úteis',
+  '/feriados': 'Cadastro de feriados',
 }
 
 const LABEL_PAPEL = { admin: 'Administrador', rh: 'Gestão', gestor: 'Gestão' }

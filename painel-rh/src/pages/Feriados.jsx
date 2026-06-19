@@ -61,7 +61,7 @@ export default function Feriados() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-100">Feriados e Dias Não Úteis</h1>
+        <h1 className="text-2xl font-bold text-gray-100">Cadastro de Feriados</h1>
         <div className="flex items-center gap-3">
           <select value={ano} onChange={e => setAno(Number(e.target.value))}
             className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm">
