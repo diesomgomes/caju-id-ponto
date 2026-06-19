@@ -890,6 +890,33 @@ async def get_calendario(
     return {"colaborador": colab, "mes": mes, "dias": dias}
 
 
+# ── Configuração visual da tela de login ──────────────────────────────────────
+
+@router.get("/login-config")
+async def get_login_config():
+    """Endpoint público — não requer autenticação."""
+    res = sb.table("empresas").select("id, nome, logo_url, login_config").eq("ativo", True).limit(1).execute()
+    if not res.data:
+        return {}
+    emp = res.data[0]
+    config = emp.get("login_config") or {}
+    config.setdefault("empresa_nome", emp.get("nome", ""))
+    config.setdefault("empresa_logo", emp.get("logo_url", ""))
+    return config
+
+
+@router.patch("/login-config")
+async def salvar_login_config(body: dict, rh=Depends(get_usuario_rh_atual)):
+    empresa_id = rh.get("empresa_id")
+    if not empresa_id:
+        ids = _empresa_ids(rh)
+        empresa_id = ids[0] if ids else None
+    if not empresa_id:
+        raise HTTPException(400, "Empresa não encontrada.")
+    sb.table("empresas").update({"login_config": body}).eq("id", empresa_id).execute()
+    return {"ok": True}
+
+
 # ── Ajuste manual do banco de horas ──────────────────────────────────────────
 
 @router.get("/colaboradores/{colab_id}/ajuste-banco")
