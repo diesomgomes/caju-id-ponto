@@ -155,17 +155,22 @@ export default function Registros() {
     getMe().then(setMe).catch(() => {})
   }, [])
 
-  async function buscar() {
-    setLoading(true)
+  async function buscar(silencioso = false) {
+    if (!silencioso) setLoading(true)
     const params = {}
     if (filtros.colaborador_id) params.colaborador_id = filtros.colaborador_id
     if (filtros.tipo) params.tipo = filtros.tipo
     if (filtros.data) params.data = filtros.data
     try { setRegistros(await getRegistros(params)) } catch (e) { console.error(e) }
-    finally { setLoading(false) }
+    finally { if (!silencioso) setLoading(false) }
   }
 
   useEffect(() => { buscar() }, [])
+
+  useEffect(() => {
+    const id = setInterval(() => buscar(true), 10 * 60 * 1000)
+    return () => clearInterval(id)
+  }, [filtros])
 
   return (
     <div className="space-y-6">

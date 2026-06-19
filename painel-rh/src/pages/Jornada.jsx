@@ -22,15 +22,20 @@ export default function Jornada() {
     getMe().then(setMe).catch(() => {})
   }, [])
 
-  async function buscar() {
-    setLoading(true)
+  async function buscar(silencioso = false) {
+    if (!silencioso) setLoading(true)
     const params = { mes: filtros.mes }
     if (filtros.colaborador_id) params.colaborador_id = filtros.colaborador_id
     try { setJornadas(await getJornadas(params)) } catch (e) { console.error(e) }
-    finally { setLoading(false) }
+    finally { if (!silencioso) setLoading(false) }
   }
 
   useEffect(() => { buscar() }, [])
+
+  useEffect(() => {
+    const id = setInterval(() => buscar(true), 10 * 60 * 1000)
+    return () => clearInterval(id)
+  }, [filtros])
 
   async function exportar(formato) {
     setExporting(true)
