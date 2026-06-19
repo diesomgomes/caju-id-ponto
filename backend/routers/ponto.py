@@ -267,7 +267,7 @@ async def historico_ponto(mes: str, colaborador: dict = Depends(get_colaborador_
         d_obj = date.fromisoformat(data_iso)
         resultado.append({
             "data": data_iso,
-            "data_br": d_obj.strftime("%A, %d/%m").capitalize(),
+            "data_br": d_obj.strftime("%d/%m/%Y"),
             "registros": dias[data_iso],
             "horas_trabalhadas": j.get("horas_trabalhadas"),
             "horas_esperadas": j.get("horas_esperadas"),
