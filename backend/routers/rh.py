@@ -735,19 +735,15 @@ async def sincronizar_feriados_nacionais(ano: int = Query(default=None), rh=Depe
             raise HTTPException(502, "Erro ao buscar feriados da BrasilAPI")
         feriados = r.json()
 
-    inseridos = 0
-    for f in feriados:
-        try:
-            sb.table("feriados").upsert({
-                "empresa_id": None,
-                "data": f["date"],
-                "descricao": f["name"],
-                "tipo": "nacional",
-            }, on_conflict="empresa_id,data", ignore_duplicates=True).execute()
-            inseridos += 1
-        except Exception:
-            pass
-    return {"sincronizados": inseridos, "ano": ano}
+    # Remove nacionais do ano e reinseride (NULL não funciona em ON CONFLICT)
+    sb.table("feriados").delete().is_("empresa_id", "null") \
+        .gte("data", f"{ano}-01-01").lte("data", f"{ano}-12-31").execute()
+
+    rows = [{"empresa_id": None, "data": f["date"], "descricao": f["name"], "tipo": "nacional"} for f in feriados]
+    if rows:
+        sb.table("feriados").insert(rows).execute()
+
+    return {"sincronizados": len(rows), "ano": ano}
 
 
 # ─── Calendário por colaborador ───────────────────────────────────────────────
