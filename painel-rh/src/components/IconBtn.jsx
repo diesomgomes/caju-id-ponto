@@ -81,6 +81,21 @@ export function IconSenha(props) {
   )
 }
 
+export function IconBanco(props) {
+  return (
+    <IconBtn color="text-orange-400 hover:text-orange-300" title="Ajustar banco de horas" {...props}>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <polyline points="12 6 12 12 16 14"/>
+        <line x1="12" y1="3" x2="12" y2="1"/>
+        <line x1="12" y1="21" x2="12" y2="23"/>
+        <line x1="3" y1="12" x2="1" y2="12"/>
+        <line x1="21" y1="12" x2="23" y2="12"/>
+      </svg>
+    </IconBtn>
+  )
+}
+
 export function IconAjustar(props) {
   return (
     <IconBtn color="text-yellow-400 hover:text-yellow-300" title="Ajustar registro" {...props}>

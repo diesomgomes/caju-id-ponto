@@ -888,3 +888,40 @@ async def get_calendario(
         dias.append({"data": d_iso, "status": status, "divergencias": divergencias})
 
     return {"colaborador": colab, "mes": mes, "dias": dias}
+
+
+# ── Ajuste manual do banco de horas ──────────────────────────────────────────
+
+@router.get("/colaboradores/{colab_id}/ajuste-banco")
+async def listar_ajustes_banco(colab_id: str, rh=Depends(get_usuario_rh_atual)):
+    res = (
+        sb.table("ajustes_banco_horas")
+        .select("*")
+        .eq("colaborador_id", colab_id)
+        .order("criado_em", desc=True)
+        .execute()
+    )
+    return res.data or []
+
+
+@router.post("/colaboradores/{colab_id}/ajuste-banco")
+async def criar_ajuste_banco(colab_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
+    minutos_val = int(body.get("minutos", 0))
+    descricao = str(body.get("descricao", "")).strip()
+    if not descricao:
+        raise HTTPException(400, "Descrição obrigatória.")
+    if minutos_val == 0:
+        raise HTTPException(400, "Informe uma quantidade de horas/minutos diferente de zero.")
+    sb.table("ajustes_banco_horas").insert({
+        "colaborador_id": colab_id,
+        "minutos": minutos_val,
+        "descricao": descricao,
+        "criado_por": rh["id"],
+    }).execute()
+    return {"ok": True}
+
+
+@router.delete("/ajuste-banco/{ajuste_id}")
+async def excluir_ajuste_banco(ajuste_id: str, rh=Depends(get_usuario_rh_atual)):
+    sb.table("ajustes_banco_horas").delete().eq("id", ajuste_id).execute()
+    return {"ok": True}

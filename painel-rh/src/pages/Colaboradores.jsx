@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react'
 import {
   getColaboradores, criarColaborador, atualizarColaborador, excluirColaborador,
   getEmpresas, getModelosJornada, getLocais, getLocaisColaborador, setLocaisColaborador,
-  alterarSenhaColaborador,
+  alterarSenhaColaborador, getAjustesBanco, criarAjusteBanco, excluirAjusteBanco,
 } from '../api'
 import Portal from '../components/Portal'
-import { IconEditar, IconExcluir, IconJornada, IconLocais, IconSenha } from '../components/IconBtn'
+import { IconEditar, IconExcluir, IconJornada, IconLocais, IconSenha, IconBanco } from '../components/IconBtn'
 
 const CAMPOS_VAZIO = { nome: '', cpf: '', pis: '', email: '', cargo: '', departamento: '', empresa_id: '', carga_horaria_diaria: '08:00:00', senha: '' }
 
@@ -284,6 +284,116 @@ function ModalJornada({ colaborador, onFechar, onSalvo, modelos = [] }) {
   )
 }
 
+function fmtMinutos(min) {
+  const abs = Math.abs(min)
+  const h = Math.floor(abs / 60)
+  const m = abs % 60
+  const sinal = min < 0 ? '−' : '+'
+  return `${sinal}${h}h${m > 0 ? ` ${m}min` : ''}`
+}
+
+function ModalAjusteBanco({ colaborador, onFechar }) {
+  const [ajustes, setAjustes] = useState([])
+  const [sinal, setSinal] = useState('+')
+  const [horas, setHoras] = useState('')
+  const [minutos, setMinutos] = useState('0')
+  const [descricao, setDescricao] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
+
+  useEffect(() => {
+    getAjustesBanco(colaborador.id).then(setAjustes).catch(console.error)
+  }, [colaborador.id])
+
+  async function salvar() {
+    const h = parseInt(horas) || 0
+    const m = parseInt(minutos) || 0
+    const total = (h * 60 + m) * (sinal === '-' ? -1 : 1)
+    if (total === 0) return setErro('Informe pelo menos 1 minuto.')
+    if (!descricao.trim()) return setErro('Informe uma descrição.')
+    setErro(''); setSalvando(true)
+    try {
+      await criarAjusteBanco(colaborador.id, { minutos: total, descricao: descricao.trim() })
+      setHoras(''); setMinutos('0'); setDescricao('')
+      const lista = await getAjustesBanco(colaborador.id)
+      setAjustes(lista)
+    } catch (e) { setErro(e.message) } finally { setSalvando(false) }
+  }
+
+  async function remover(id) {
+    if (!confirm('Remover este ajuste?')) return
+    try {
+      await excluirAjusteBanco(id)
+      setAjustes(a => a.filter(x => x.id !== id))
+    } catch (e) { alert(e.message) }
+  }
+
+  const totalGeral = ajustes.reduce((s, a) => s + a.minutos, 0)
+
+  return (
+    <Portal><div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4">
+      <div className="bg-gray-900 rounded-xl p-6 w-full max-w-md space-y-5 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="font-semibold text-gray-100">Banco de Horas</h3>
+            <p className="text-xs text-gray-400 mt-0.5">{colaborador.nome}</p>
+          </div>
+          <button onClick={onFechar} className="text-gray-400 hover:text-gray-100 text-xl">×</button>
+        </div>
+
+        {/* Total */}
+        <div className={`rounded-lg px-4 py-3 text-center ${totalGeral >= 0 ? 'bg-emerald-900/30 border border-emerald-800/40' : 'bg-red-900/30 border border-red-800/40'}`}>
+          <p className="text-xs text-gray-400 mb-0.5">Saldo de ajustes manuais</p>
+          <p className={`text-2xl font-bold ${totalGeral >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtMinutos(totalGeral)}</p>
+        </div>
+
+        {/* Formulário */}
+        <div className="space-y-3">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Novo ajuste</p>
+          <div className="flex gap-2">
+            <div className="flex rounded-lg overflow-hidden border border-gray-700 flex-shrink-0">
+              <button onClick={() => setSinal('+')}
+                className={`px-3 py-2 text-sm font-bold transition-colors ${sinal === '+' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400'}`}>+</button>
+              <button onClick={() => setSinal('-')}
+                className={`px-3 py-2 text-sm font-bold transition-colors ${sinal === '-' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>−</button>
+            </div>
+            <input type="number" min="0" placeholder="Horas" value={horas} onChange={e => setHoras(e.target.value)}
+              className="w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm text-center" />
+            <span className="self-center text-gray-400 text-sm">h</span>
+            <input type="number" min="0" max="59" placeholder="Min" value={minutos} onChange={e => setMinutos(e.target.value)}
+              className="w-16 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm text-center" />
+            <span className="self-center text-gray-400 text-sm">min</span>
+          </div>
+          <input type="text" placeholder="Motivo / descrição *" value={descricao} onChange={e => setDescricao(e.target.value)}
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+          {erro && <p className="text-red-400 text-xs">{erro}</p>}
+          <button onClick={salvar} disabled={salvando}
+            className="w-full py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white text-sm font-semibold">
+            {salvando ? 'Salvando…' : 'Registrar ajuste'}
+          </button>
+        </div>
+
+        {/* Histórico */}
+        {ajustes.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Histórico de ajustes</p>
+            {ajustes.map(a => (
+              <div key={a.id} className="flex items-center justify-between bg-gray-800/50 rounded-lg px-3 py-2 gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-300 truncate">{a.descricao}</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">{new Date(a.criado_em).toLocaleDateString('pt-BR')}</p>
+                </div>
+                <span className={`text-sm font-bold flex-shrink-0 ${a.minutos >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtMinutos(a.minutos)}</span>
+                <button onClick={() => remover(a.id)} className="text-gray-600 hover:text-red-400 text-lg leading-none flex-shrink-0">×</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Portal>
+  )
+}
+
 export default function Colaboradores() {
   const [lista, setLista] = useState([])
   const [empresas, setEmpresas] = useState([])
@@ -294,6 +404,7 @@ export default function Colaboradores() {
   const [modalJornada, setModalJornada] = useState(null)
   const [modalLocais, setModalLocais] = useState(null)
   const [modalSenha, setModalSenha] = useState(null)
+  const [modalBanco, setModalBanco] = useState(null)
   const [form, setForm] = useState(CAMPOS_VAZIO)
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
@@ -392,6 +503,7 @@ export default function Colaboradores() {
                   <div className="flex gap-3">
                     <IconEditar onClick={() => abrirEditar(c)} />
                     <IconSenha onClick={() => setModalSenha(c)} />
+                    <IconBanco onClick={() => setModalBanco(c)} />
                     <IconJornada onClick={() => setModalJornada(c)} />
                     <IconLocais onClick={() => setModalLocais(c)} />
                     <IconExcluir onClick={() => excluir(c.id)} />
@@ -420,6 +532,10 @@ export default function Colaboradores() {
 
       {modalSenha && (
         <ModalSenha colaborador={modalSenha} onFechar={() => setModalSenha(null)} />
+      )}
+
+      {modalBanco && (
+        <ModalAjusteBanco colaborador={modalBanco} onFechar={() => setModalBanco(null)} />
       )}
 
       {modalLocais && (
