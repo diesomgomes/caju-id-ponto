@@ -33,7 +33,7 @@ function ModalFoto({ registro, onClose }) {
   }, [registro.id])
 
   return (
-    <Portal><div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4" onClick={onClose}>
+    <Portal><div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4">
       <div className="bg-gray-900 rounded-xl overflow-hidden w-full max-w-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center px-5 py-3 border-b border-gray-800">
           <div>
@@ -87,7 +87,7 @@ function ModalAjuste({ registro, onClose, onSalvo }) {
   }
 
   return (
-    <Portal><div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4" onClick={onClose}>
+    <Portal><div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4">
       <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center">
           <h3 className="font-semibold text-gray-100">Ajuste de Registro</h3>
@@ -477,14 +477,14 @@ function AbaCalendario({ colaboradores }) {
           {/* Calendário */}
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
             {/* Cabeçalho dos dias */}
-            <div className="grid grid-cols-7 mb-2">
+            <div className="grid grid-cols-7 mb-2 max-w-sm mx-auto">
               {SEMANA.map(d => (
                 <div key={d} className="text-center text-xs font-semibold text-gray-500 py-1">{d}</div>
               ))}
             </div>
 
             {/* Grid de dias */}
-            <div className="grid grid-cols-7 gap-1">
+            <div className="grid grid-cols-7 gap-1 max-w-sm mx-auto">
               {montarGrid(dados.dias).map((dia, i) => {
                 if (!dia) return <div key={i} />
                 const cfg = STATUS_CONFIG[dia.status] || STATUS_CONFIG.futuro
@@ -494,7 +494,7 @@ function AbaCalendario({ colaboradores }) {
                 return (
                   <div
                     key={dia.data}
-                    className={`relative aspect-square flex flex-col items-center justify-center rounded-lg cursor-default
+                    className={`relative h-9 flex flex-col items-center justify-center rounded-lg cursor-default
                       ${cfg.cor} ${dia.status === 'folga' || dia.status === 'futuro' ? '' : 'cursor-pointer'}
                       ${ehHoje ? 'ring-2 ring-white ring-offset-1 ring-offset-gray-900' : ''}
                     `}

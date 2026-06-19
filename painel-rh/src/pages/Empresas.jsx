@@ -7,7 +7,7 @@ const VAZIO = { nome: '', cnpj: '', logo_url: '', cep: '', logradouro: '', numer
 
 function ModalEmpresa({ titulo, dados, onChange, onSalvar, onFechar, loading, erro }) {
   return (
-    <Portal><div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4" onClick={onFechar}>
+    <Portal><div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4">
       <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4 overflow-y-auto max-h-[90vh]" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center">
           <h3 className="font-semibold text-gray-100">{titulo}</h3>

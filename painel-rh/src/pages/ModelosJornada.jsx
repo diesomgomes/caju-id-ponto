@@ -81,7 +81,7 @@ function ModalModelo({ titulo, dados, onChange, onSalvar, onFechar, loading, err
   const carga = dados.carga_horaria_diaria?.slice(0, 5) || '—'
 
   return (
-    <Portal><div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4" onClick={onFechar}>
+    <Portal><div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4">
       <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-5 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center">
           <h3 className="font-semibold text-gray-100">{titulo}</h3>

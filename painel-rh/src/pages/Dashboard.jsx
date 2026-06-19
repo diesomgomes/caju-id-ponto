@@ -83,7 +83,9 @@ export default function Dashboard() {
         <div style={{ borderBottom: '0.5px solid rgba(0,0,0,0.07)', paddingBottom: 12, marginBottom: 16 }}>
           <p className="text-sm font-medium" style={{ color: '#18181b' }}>Registros — últimos 7 dias</p>
         </div>
-        <Bar data={chartData} options={chartOpts} />
+        <div style={{ height: 200 }}>
+          <Bar data={chartData} options={{ ...chartOpts, maintainAspectRatio: false }} />
+        </div>
       </div>
 
       {dados.ultimos_registros?.length > 0 && (
