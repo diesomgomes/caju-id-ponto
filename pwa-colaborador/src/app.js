@@ -179,7 +179,9 @@ async function iniciarFluxoPonto() {
   const video = document.getElementById("video-camera");
   try {
     await abrirCamera(video);
+    document.getElementById("btn-capturar").classList.remove("hidden");
     document.getElementById("btn-capturar").disabled = false;
+    document.getElementById("acoes-foto").classList.add("hidden");
     document.getElementById("preview-foto").classList.add("hidden");
     video.classList.remove("hidden");
   } catch (err) {
