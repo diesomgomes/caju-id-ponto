@@ -70,6 +70,17 @@ export function IconVer(props) {
   )
 }
 
+export function IconSenha(props) {
+  return (
+    <IconBtn color="text-purple-400 hover:text-purple-300" title="Alterar senha" {...props}>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+    </IconBtn>
+  )
+}
+
 export function IconAjustar(props) {
   return (
     <IconBtn color="text-yellow-400 hover:text-yellow-300" title="Ajustar registro" {...props}>

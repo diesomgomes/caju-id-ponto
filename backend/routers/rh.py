@@ -143,14 +143,71 @@ async def criar_colaborador(body: dict, rh=Depends(get_usuario_rh_atual)):
     empresa = body.get("empresa_id") or rh["empresa_id"]
     if empresa not in ids:
         raise HTTPException(403, "Sem acesso a esta empresa")
+
+    senha = body.pop("senha", "").strip()
+    email = body.get("email", "").strip()
+    nome  = body.get("nome", "").strip()
+
+    auth_user_id = None
+    if email and senha:
+        try:
+            auth_res = sb.auth.admin.create_user({
+                "email": email,
+                "password": senha,
+                "email_confirm": True,
+                "user_metadata": {"nome": nome},
+            })
+            auth_user_id = auth_res.user.id
+        except Exception as e:
+            raise HTTPException(400, f"Erro ao criar acesso: {e}")
+
     payload = {**body, "empresa_id": empresa, "ativo": True}
+    if auth_user_id:
+        payload["auth_user_id"] = auth_user_id
+
     try:
         res = sb.table("colaboradores").insert(payload).execute()
     except Exception as e:
+        if auth_user_id:
+            try: sb.auth.admin.delete_user(auth_user_id)
+            except: pass
         raise HTTPException(400, f"Erro ao criar colaborador: {e}")
     if not res.data:
         raise HTTPException(400, "Erro ao criar colaborador")
     return res.data[0]
+
+
+@router.patch("/colaboradores/{colab_id}/senha")
+async def alterar_senha_colaborador(colab_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
+    ids = _empresa_ids(rh)
+    senha = body.get("senha", "").strip()
+    if not senha or len(senha) < 6:
+        raise HTTPException(400, "A senha deve ter ao menos 6 caracteres.")
+    res = sb.table("colaboradores").select("auth_user_id, empresa_id").eq("id", colab_id).single().execute()
+    if not res.data or res.data["empresa_id"] not in ids:
+        raise HTTPException(404, "Colaborador não encontrado")
+    auth_user_id = res.data.get("auth_user_id")
+    if not auth_user_id:
+        # Colaborador ainda não tem usuário Auth — criar agora
+        email = sb.table("colaboradores").select("email, nome").eq("id", colab_id).single().execute().data
+        if not email or not email.get("email"):
+            raise HTTPException(400, "Colaborador sem e-mail cadastrado.")
+        try:
+            auth_res = sb.auth.admin.create_user({
+                "email": email["email"],
+                "password": senha,
+                "email_confirm": True,
+                "user_metadata": {"nome": email.get("nome", "")},
+            })
+            sb.table("colaboradores").update({"auth_user_id": auth_res.user.id}).eq("id", colab_id).execute()
+        except Exception as e:
+            raise HTTPException(400, f"Erro ao criar acesso: {e}")
+    else:
+        try:
+            sb.auth.admin.update_user_by_id(auth_user_id, {"password": senha})
+        except Exception as e:
+            raise HTTPException(400, f"Erro ao alterar senha: {e}")
+    return {"ok": True}
 
 
 @router.put("/colaboradores/{colab_id}")

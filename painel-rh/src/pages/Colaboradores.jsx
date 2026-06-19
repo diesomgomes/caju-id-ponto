@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react'
 import {
   getColaboradores, criarColaborador, atualizarColaborador, excluirColaborador,
   getEmpresas, getModelosJornada, getLocais, getLocaisColaborador, setLocaisColaborador,
+  alterarSenhaColaborador,
 } from '../api'
 import Portal from '../components/Portal'
-import { IconEditar, IconExcluir, IconJornada, IconLocais } from '../components/IconBtn'
+import { IconEditar, IconExcluir, IconJornada, IconLocais, IconSenha } from '../components/IconBtn'
 
-const CAMPOS_VAZIO = { nome: '', cpf: '', pis: '', email: '', cargo: '', departamento: '', empresa_id: '', carga_horaria_diaria: '08:00:00' }
+const CAMPOS_VAZIO = { nome: '', cpf: '', pis: '', email: '', cargo: '', departamento: '', empresa_id: '', carga_horaria_diaria: '08:00:00', senha: '' }
 
-function ModalColaborador({ titulo, dados, onChange, onSalvar, onFechar, loading, erro, empresas, modelos }) {
+function ModalColaborador({ titulo, criando, dados, onChange, onSalvar, onFechar, loading, erro, empresas, modelos }) {
   return (
     <Portal><div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4" onClick={onFechar}>
       <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -51,6 +52,17 @@ function ModalColaborador({ titulo, dados, onChange, onSalvar, onFechar, loading
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
           </div>
         ))}
+
+        {criando && (
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">Senha de acesso ao app *</label>
+            <input type="password" value={dados.senha || ''} onChange={e => onChange('senha', e.target.value)}
+              placeholder="Mínimo 6 caracteres"
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+            <p className="text-xs text-gray-600 mt-1">Senha que o colaborador usará para entrar no app de ponto.</p>
+          </div>
+        )}
+
         {erro && <p className="text-red-400 text-sm">{erro}</p>}
         <div className="flex gap-3">
           <button onClick={onFechar} className="flex-1 py-2 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700">Cancelar</button>
@@ -59,6 +71,68 @@ function ModalColaborador({ titulo, dados, onChange, onSalvar, onFechar, loading
             {loading ? 'Salvando…' : 'Salvar'}
           </button>
         </div>
+      </div>
+    </div></Portal>
+  )
+}
+
+function ModalSenha({ colaborador, onFechar }) {
+  const [senha, setSenha] = useState('')
+  const [confirmar, setConfirmar] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [erro, setErro] = useState('')
+  const [ok, setOk] = useState(false)
+
+  async function salvar() {
+    if (senha.length < 6) return setErro('A senha deve ter ao menos 6 caracteres.')
+    if (senha !== confirmar) return setErro('As senhas não coincidem.')
+    setErro(''); setLoading(true)
+    try {
+      await alterarSenhaColaborador(colaborador.id, senha)
+      setOk(true)
+    } catch (e) { setErro(e.message) } finally { setLoading(false) }
+  }
+
+  return (
+    <Portal><div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4" onClick={onFechar}>
+      <div className="bg-gray-900 rounded-xl p-6 max-w-sm w-full space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="font-semibold text-gray-100">Alterar senha</h3>
+            <p className="text-xs text-gray-500 mt-0.5">{colaborador.nome}</p>
+          </div>
+          <button onClick={onFechar} className="text-gray-400 hover:text-gray-100 text-xl">×</button>
+        </div>
+
+        {ok ? (
+          <div className="text-center py-4">
+            <p className="text-emerald-400 font-semibold">Senha alterada com sucesso!</p>
+            <button onClick={onFechar} className="mt-4 w-full py-2 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700">Fechar</button>
+          </div>
+        ) : (
+          <>
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Nova senha</label>
+              <input type="password" value={senha} onChange={e => setSenha(e.target.value)}
+                placeholder="Mínimo 6 caracteres"
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Confirmar senha</label>
+              <input type="password" value={confirmar} onChange={e => setConfirmar(e.target.value)}
+                placeholder="Repita a senha"
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+            </div>
+            {erro && <p className="text-red-400 text-sm">{erro}</p>}
+            <div className="flex gap-3">
+              <button onClick={onFechar} className="flex-1 py-2 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700">Cancelar</button>
+              <button onClick={salvar} disabled={loading}
+                className="flex-1 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold">
+                {loading ? 'Salvando…' : 'Salvar'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div></Portal>
   )
@@ -219,6 +293,7 @@ export default function Colaboradores() {
   const [modal, setModal] = useState(null)
   const [modalJornada, setModalJornada] = useState(null)
   const [modalLocais, setModalLocais] = useState(null)
+  const [modalSenha, setModalSenha] = useState(null)
   const [form, setForm] = useState(CAMPOS_VAZIO)
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
@@ -316,6 +391,7 @@ export default function Colaboradores() {
                 <td className="px-4 py-3">
                   <div className="flex gap-3">
                     <IconEditar onClick={() => abrirEditar(c)} />
+                    <IconSenha onClick={() => setModalSenha(c)} />
                     <IconJornada onClick={() => setModalJornada(c)} />
                     <IconLocais onClick={() => setModalLocais(c)} />
                     <IconExcluir onClick={() => excluir(c.id)} />
@@ -330,6 +406,7 @@ export default function Colaboradores() {
       {modal && (
         <ModalColaborador
           titulo={modal === 'criar' ? 'Novo Colaborador' : 'Editar Colaborador'}
+          criando={modal === 'criar'}
           dados={form}
           onChange={setField}
           onSalvar={salvar}
@@ -339,6 +416,10 @@ export default function Colaboradores() {
           empresas={empresas}
           modelos={modelos}
         />
+      )}
+
+      {modalSenha && (
+        <ModalSenha colaborador={modalSenha} onFechar={() => setModalSenha(null)} />
       )}
 
       {modalLocais && (

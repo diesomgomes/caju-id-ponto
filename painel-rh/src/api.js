@@ -102,6 +102,7 @@ export const getColaborador = (id) => api(`/rh/colaboradores/${id}`)
 export const criarColaborador = (body) => api('/rh/colaboradores', { method: 'POST', body: JSON.stringify(body) })
 export const atualizarColaborador = (id, body) => api(`/rh/colaboradores/${id}`, { method: 'PUT', body: JSON.stringify(body) })
 export const excluirColaborador = (id) => api(`/rh/colaboradores/${id}`, { method: 'DELETE' })
+export const alterarSenhaColaborador = (id, senha) => api(`/rh/colaboradores/${id}/senha`, { method: 'PATCH', body: JSON.stringify({ senha }) })
 
 export const getRegistros = (params = {}) => {
   const qs = new URLSearchParams(params).toString()
