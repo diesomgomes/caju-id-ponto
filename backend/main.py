@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from routers import ponto, rh
+from routers import ponto, rh, kiosk
 from services.cleanup import limpar_fotos_antigas
 
 logging.basicConfig(level=logging.INFO)
@@ -32,6 +32,7 @@ app.add_middleware(
 
 app.include_router(ponto.router)
 app.include_router(rh.router)
+app.include_router(kiosk.router)
 
 
 @app.get("/health")

@@ -20,6 +20,7 @@ const NAV_SECTIONS = [
       { to: '/usuarios', label: 'Cadastro de usuários' },
       { to: '/feriados', label: 'Cadastro de feriados' },
       { to: '/aparencia-login', label: 'Aparência do login' },
+      { to: '/dispositivos', label: 'Cadastro de dispositivos' },
     ],
   },
 ]
@@ -34,6 +35,7 @@ const PAGE_LABELS = {
   '/usuarios': 'Cadastro de usuários',
   '/feriados': 'Cadastro de feriados',
   '/aparencia-login': 'Aparência do login',
+  '/dispositivos': 'Cadastro de dispositivos',
 }
 
 const LABEL_PAPEL = { admin: 'Administrador', rh: 'Gestão', gestor: 'Gestão' }

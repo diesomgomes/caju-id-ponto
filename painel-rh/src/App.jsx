@@ -12,6 +12,8 @@ import ModelosJornada from './pages/ModelosJornada'
 import Usuarios from './pages/Usuarios'
 import Feriados from './pages/Feriados'
 import AparenciaLogin from './pages/AparenciaLogin'
+import Dispositivos from './pages/Dispositivos'
+import Kiosk from './pages/Kiosk'
 
 function RotaProtegida({ children }) {
   return getSessao() ? children : <Navigate to="/login" replace />
@@ -22,6 +24,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/kiosk/:token" element={<Kiosk />} />
         <Route path="/" element={<RotaProtegida><Layout /></RotaProtegida>}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
@@ -34,6 +37,7 @@ export default function App() {
           <Route path="usuarios" element={<Usuarios />} />
           <Route path="feriados" element={<Feriados />} />
           <Route path="aparencia-login" element={<AparenciaLogin />} />
+          <Route path="dispositivos" element={<Dispositivos />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

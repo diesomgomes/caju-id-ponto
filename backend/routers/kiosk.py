@@ -1,0 +1,178 @@
+import base64
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+from fastapi import APIRouter, HTTPException
+
+from db.supabase_client import supabase as sb
+from services.hash_chain import calcular_hash
+from services.sequencia import proxima_batida_esperada
+from services.storage import upload_selfie
+
+router = APIRouter(prefix="/kiosk", tags=["kiosk"])
+
+TZ_BR = ZoneInfo("America/Sao_Paulo")
+
+TIPO_LABEL = {
+    "entrada": "Entrada",
+    "saida_almoco": "Saída Almoço",
+    "retorno_almoco": "Retorno Almoço",
+    "saida": "Saída",
+}
+
+
+def _get_device(token: str) -> dict:
+    res = (
+        sb.table("dispositivos_ponto")
+        .select("*")
+        .eq("token", token)
+        .eq("ativo", True)
+        .limit(1)
+        .execute()
+    )
+    if not res.data:
+        raise HTTPException(404, "Dispositivo não encontrado ou inativo.")
+    return res.data[0]
+
+
+@router.get("/{token}")
+async def kiosk_info(token: str):
+    device = _get_device(token)
+    empresa_id = device["empresa_id"]
+
+    emp = sb.table("empresas").select("id, nome, logo_url, login_config").eq("id", empresa_id).limit(1).execute()
+    empresa = emp.data[0] if emp.data else {}
+
+    colabs = (
+        sb.table("colaboradores")
+        .select("id, nome, cpf, cargo, departamento")
+        .eq("empresa_id", empresa_id)
+        .eq("ativo", True)
+        .order("nome")
+        .execute()
+    ).data or []
+
+    return {
+        "dispositivo": {"id": device["id"], "nome": device["nome"]},
+        "empresa": empresa,
+        "colaboradores": colabs,
+    }
+
+
+@router.post("/{token}/ponto")
+async def kiosk_ponto(token: str, body: dict):
+    device = _get_device(token)
+    empresa_id = device["empresa_id"]
+
+    colaborador_id = body.get("colaborador_id")
+    cpf = body.get("cpf")
+    foto_b64: str | None = body.get("foto")
+
+    # Localizar colaborador
+    if colaborador_id:
+        res = (
+            sb.table("colaboradores")
+            .select("*")
+            .eq("id", colaborador_id)
+            .eq("empresa_id", empresa_id)
+            .limit(1)
+            .execute()
+        )
+    elif cpf:
+        cpf_limpo = cpf.replace(".", "").replace("-", "").replace("/", "").strip()
+        res = (
+            sb.table("colaboradores")
+            .select("*")
+            .eq("cpf", cpf_limpo)
+            .eq("empresa_id", empresa_id)
+            .limit(1)
+            .execute()
+        )
+    else:
+        raise HTTPException(400, "Informe colaborador_id ou cpf.")
+
+    if not res.data:
+        raise HTTPException(404, "Colaborador não encontrado nesta empresa.")
+
+    colaborador = res.data[0]
+    colaborador_id = colaborador["id"]
+
+    agora_utc = datetime.now(timezone.utc)
+    hoje_br = agora_utc.astimezone(TZ_BR).date()
+
+    # Última batida de hoje para determinar o próximo tipo
+    ultimo = (
+        sb.table("registros_ponto")
+        .select("tipo")
+        .eq("colaborador_id", colaborador_id)
+        .gte("registrado_em", f"{hoje_br}T00:00:00+00:00")
+        .order("registrado_em", desc=True)
+        .limit(1)
+        .execute()
+    )
+    ultimo_tipo = ultimo.data[0]["tipo"] if ultimo.data else None
+    proximos = proxima_batida_esperada(ultimo_tipo)
+
+    if not proximos:
+        raise HTTPException(400, "Jornada do dia já encerrada para este colaborador.")
+
+    tipo = proximos[0]
+
+    # Upload da foto
+    foto_url = None
+    if foto_b64:
+        try:
+            conteudo = base64.b64decode(foto_b64.split(",")[-1])
+            foto_url = upload_selfie(empresa_id, colaborador_id, conteudo)
+        except Exception as e:
+            raise HTTPException(502, f"Falha no upload da foto: {e}")
+
+    # Hash de integridade
+    ult_hash = (
+        sb.table("registros_ponto")
+        .select("hash_integridade")
+        .eq("colaborador_id", colaborador_id)
+        .order("registrado_em", desc=True)
+        .limit(1)
+        .execute()
+    )
+    hash_anterior = ult_hash.data[0]["hash_integridade"] if ult_hash.data else None
+    registrado_em_str = agora_utc.isoformat()
+
+    hash_atual = calcular_hash(
+        {
+            "colaborador_id": colaborador_id,
+            "tipo": tipo,
+            "lat_registro": None,
+            "lng_registro": None,
+            "foto_url": foto_url,
+            "registrado_em": registrado_em_str,
+        },
+        hash_anterior,
+    )
+
+    sb.table("registros_ponto").insert({
+        "colaborador_id": colaborador_id,
+        "empresa_id": empresa_id,
+        "tipo": tipo,
+        "lat_registro": None,
+        "lng_registro": None,
+        "distancia_metros": None,
+        "local_permitido_id": None,
+        "foto_url": foto_url,
+        "ip_dispositivo": None,
+        "user_agent": f"kiosk/{device['id']}",
+        "hash_integridade": hash_atual,
+        "hash_anterior": hash_anterior,
+        "status": "valido",
+        "motivo_rejeicao": None,
+        "registrado_em": registrado_em_str,
+    }).execute()
+
+    return {
+        "ok": True,
+        "tipo": tipo,
+        "tipo_label": TIPO_LABEL.get(tipo, tipo),
+        "colaborador": colaborador["nome"],
+        "horario": agora_utc.astimezone(TZ_BR).strftime("%H:%M"),
+    }

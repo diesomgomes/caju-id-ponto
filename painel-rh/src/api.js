@@ -158,4 +158,8 @@ export const sincronizarFeriados = (ano) => api(`/rh/feriados/sincronizar?ano=${
 export const getCalendario = (colaborador_id, mes) => api(`/rh/calendario?colaborador_id=${colaborador_id}&mes=${mes}`)
 
 export const getLoginConfig = () => fetch(`${window.__API_URL__ || 'https://caju-id-ponto-production.up.railway.app'}/rh/login-config`).then(r => r.json()).catch(() => ({}))
+
+export const getDispositivos = () => api('/rh/dispositivos')
+export const criarDispositivo = (body) => api('/rh/dispositivos', { method: 'POST', body: JSON.stringify(body) })
+export const excluirDispositivo = (id) => api(`/rh/dispositivos/${id}`, { method: 'DELETE' })
 export const salvarLoginConfig = (body) => api('/rh/login-config', { method: 'PATCH', body: JSON.stringify(body) })

@@ -952,3 +952,43 @@ async def criar_ajuste_banco(colab_id: str, body: dict, rh=Depends(get_usuario_r
 async def excluir_ajuste_banco(ajuste_id: str, rh=Depends(get_usuario_rh_atual)):
     sb.table("ajustes_banco_horas").delete().eq("id", ajuste_id).execute()
     return {"ok": True}
+
+
+# ── Dispositivos de ponto fixo ────────────────────────────────────────────────
+
+@router.get("/dispositivos")
+async def listar_dispositivos(rh=Depends(get_usuario_rh_atual)):
+    ids = _empresa_ids(rh)
+    res = (
+        sb.table("dispositivos_ponto")
+        .select("*")
+        .in_("empresa_id", ids)
+        .eq("ativo", True)
+        .order("criado_em", desc=True)
+        .execute()
+    )
+    return res.data or []
+
+
+@router.post("/dispositivos")
+async def criar_dispositivo(body: dict, rh=Depends(get_usuario_rh_atual)):
+    empresa_id = rh.get("empresa_id")
+    if not empresa_id:
+        ids = _empresa_ids(rh)
+        empresa_id = ids[0] if ids else None
+    if not empresa_id:
+        raise HTTPException(400, "Empresa não encontrada.")
+    nome = str(body.get("nome", "")).strip()
+    if not nome:
+        raise HTTPException(400, "Nome obrigatório.")
+    res = sb.table("dispositivos_ponto").insert({
+        "empresa_id": empresa_id,
+        "nome": nome,
+    }).execute()
+    return res.data[0]
+
+
+@router.delete("/dispositivos/{disp_id}")
+async def excluir_dispositivo(disp_id: str, rh=Depends(get_usuario_rh_atual)):
+    sb.table("dispositivos_ponto").update({"ativo": False}).eq("id", disp_id).execute()
+    return {"ok": True}
