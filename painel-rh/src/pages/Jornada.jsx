@@ -4,6 +4,7 @@ import L from 'leaflet'
 import {
   getJornadas, getRegistros, getColaboradores, exportarJornadas,
   excluirJornada, excluirRegistro, getFotoUrl, ajustarRegistro, getMe,
+  getCalendario,
 } from '../api'
 import Portal from '../components/Portal'
 import { IconVer, IconAjustar, IconExcluir } from '../components/IconBtn'
@@ -356,6 +357,198 @@ function AbaRegistros({ colaboradores, me }) {
   )
 }
 
+// ── Aba Calendário ────────────────────────────────────────────────────────────
+const STATUS_CONFIG = {
+  ok:          { cor: 'bg-emerald-500',  texto: 'text-emerald-100', label: 'OK' },
+  divergencia: { cor: 'bg-yellow-500',   texto: 'text-yellow-100',  label: 'Divergência' },
+  falta:       { cor: 'bg-red-600',      texto: 'text-red-100',     label: 'Falta' },
+  feriado:     { cor: 'bg-gray-600',     texto: 'text-gray-200',    label: 'Feriado' },
+  folga:       { cor: 'bg-transparent',  texto: 'text-gray-700',    label: '' },
+  futuro:      { cor: 'bg-transparent',  texto: 'text-gray-600',    label: '' },
+}
+
+const DIV_LABEL = {
+  sem_entrada:     'Sem entrada',
+  sem_saida:       'Sem saída',
+  local_invalido:  'Local inválido',
+  sem_foto:        'Sem foto',
+  atraso_entrada:  'Atraso na entrada',
+  saida_antecipada:'Saída antecipada',
+}
+
+const SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+
+function AbaCalendario({ colaboradores }) {
+  const hoje = new Date()
+  const [colaboradorId, setColaboradorId] = useState('')
+  const [mes, setMes] = useState(hoje.toISOString().slice(0, 7))
+  const [dados, setDados] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [tooltip, setTooltip] = useState(null)
+
+  async function buscar() {
+    if (!colaboradorId) return
+    setLoading(true)
+    try { setDados(await getCalendario(colaboradorId, mes)) }
+    catch (e) { console.error(e) }
+    finally { setLoading(false) }
+  }
+
+  useEffect(() => { if (colaboradorId) buscar() }, [colaboradorId, mes])
+
+  function navMes(delta) {
+    const [y, m] = mes.split('-').map(Number)
+    const d = new Date(y, m - 1 + delta, 1)
+    setMes(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+  }
+
+  // Monta grid do calendário
+  function montarGrid(dias) {
+    if (!dias?.length) return []
+    const primeiroDia = new Date(dias[0].data + 'T12:00:00').getDay() // 0=dom
+    const grid = Array(primeiroDia).fill(null) // células vazias no início
+    dias.forEach(d => grid.push(d))
+    return grid
+  }
+
+  const legenda = [
+    { status: 'ok',          label: 'Batidas ok' },
+    { status: 'divergencia', label: 'Divergência' },
+    { status: 'falta',       label: 'Falta' },
+    { status: 'feriado',     label: 'Feriado / folga' },
+  ]
+
+  const contagem = dados?.dias?.reduce((acc, d) => {
+    if (['ok','divergencia','falta','feriado'].includes(d.status))
+      acc[d.status] = (acc[d.status] || 0) + 1
+    return acc
+  }, {}) || {}
+
+  return (
+    <div className="space-y-5">
+      {/* Filtros */}
+      <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 flex flex-wrap gap-3 items-end">
+        <div>
+          <label className="text-xs text-gray-400 block mb-1">Colaborador *</label>
+          <select value={colaboradorId} onChange={e => setColaboradorId(e.target.value)}
+            className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm">
+            <option value="">Selecione um colaborador</option>
+            {colaboradores.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+          </select>
+        </div>
+        <div className="flex items-end gap-2">
+          <button onClick={() => navMes(-1)}
+            className="w-9 h-9 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-lg flex items-center justify-center">‹</button>
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">Mês</label>
+            <input type="month" value={mes} onChange={e => setMes(e.target.value)}
+              className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+          </div>
+          <button onClick={() => navMes(1)}
+            className="w-9 h-9 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-lg flex items-center justify-center">›</button>
+        </div>
+      </div>
+
+      {!colaboradorId && (
+        <div className="text-center py-16 text-gray-500">Selecione um colaborador para ver o calendário.</div>
+      )}
+
+      {colaboradorId && loading && (
+        <div className="text-center py-16 text-gray-500">Carregando…</div>
+      )}
+
+      {colaboradorId && !loading && dados && (
+        <>
+          {/* Resumo */}
+          <div className="grid grid-cols-4 gap-3">
+            {[
+              { status: 'ok',          label: 'Dias OK',       cor: 'border-emerald-500 text-emerald-400' },
+              { status: 'divergencia', label: 'Divergências',  cor: 'border-yellow-500 text-yellow-400'   },
+              { status: 'falta',       label: 'Faltas',        cor: 'border-red-500 text-red-400'         },
+              { status: 'feriado',     label: 'Feriados',      cor: 'border-gray-500 text-gray-400'       },
+            ].map(({ status, label, cor }) => (
+              <div key={status} className={`bg-gray-900 border-l-4 rounded-xl p-4 ${cor}`}>
+                <p className="text-xs text-gray-400">{label}</p>
+                <p className={`text-2xl font-bold mt-1 ${cor.split(' ')[1]}`}>{contagem[status] || 0}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Calendário */}
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
+            {/* Cabeçalho dos dias */}
+            <div className="grid grid-cols-7 mb-2">
+              {SEMANA.map(d => (
+                <div key={d} className="text-center text-xs font-semibold text-gray-500 py-1">{d}</div>
+              ))}
+            </div>
+
+            {/* Grid de dias */}
+            <div className="grid grid-cols-7 gap-1">
+              {montarGrid(dados.dias).map((dia, i) => {
+                if (!dia) return <div key={i} />
+                const cfg = STATUS_CONFIG[dia.status] || STATUS_CONFIG.futuro
+                const dNum = new Date(dia.data + 'T12:00:00').getDate()
+                const ehHoje = dia.data === hoje.toISOString().slice(0, 10)
+
+                return (
+                  <div
+                    key={dia.data}
+                    className={`relative aspect-square flex flex-col items-center justify-center rounded-lg cursor-default
+                      ${cfg.cor} ${dia.status === 'folga' || dia.status === 'futuro' ? '' : 'cursor-pointer'}
+                      ${ehHoje ? 'ring-2 ring-white ring-offset-1 ring-offset-gray-900' : ''}
+                    `}
+                    onMouseEnter={() => dia.status !== 'folga' && dia.status !== 'futuro' && setTooltip({ ...dia, x: i })}
+                    onMouseLeave={() => setTooltip(null)}
+                  >
+                    <span className={`text-xs font-bold ${cfg.texto}`}>{dNum}</span>
+                    {dia.status === 'ok' && <span className="text-[8px] text-emerald-200 leading-none">✓</span>}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Legenda */}
+            <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-gray-800">
+              {legenda.map(({ status, label }) => {
+                const cfg = STATUS_CONFIG[status]
+                return (
+                  <div key={status} className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-sm ${cfg.cor}`} />
+                    <span className="text-xs text-gray-400">{label}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Tooltip / detalhe do dia selecionado */}
+          {tooltip && (
+            <div className="bg-gray-900 rounded-xl border border-gray-700 p-4 space-y-1">
+              <p className="text-sm font-semibold text-gray-100">
+                {new Date(tooltip.data + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}
+                {' — '}
+                <span className={`font-bold ${
+                  tooltip.status === 'ok' ? 'text-emerald-400' :
+                  tooltip.status === 'divergencia' ? 'text-yellow-400' :
+                  tooltip.status === 'falta' ? 'text-red-400' : 'text-gray-400'
+                }`}>
+                  {STATUS_CONFIG[tooltip.status]?.label}
+                </span>
+              </p>
+              {tooltip.divergencias?.length > 0 && (
+                <ul className="text-xs text-yellow-300 list-disc list-inside space-y-0.5">
+                  {tooltip.divergencias.map(d => <li key={d}>{DIV_LABEL[d] || d}</li>)}
+                </ul>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function Jornada() {
   const [aba, setAba] = useState('jornada')
@@ -368,8 +561,9 @@ export default function Jornada() {
   }, [])
 
   const abas = [
-    { id: 'jornada',   label: 'Acompanhamento de jornada' },
-    { id: 'registros', label: 'Registro de batidas' },
+    { id: 'jornada',    label: 'Acompanhamento de jornada' },
+    { id: 'calendario', label: 'Calendário' },
+    { id: 'registros',  label: 'Registro de batidas' },
   ]
 
   return (
@@ -393,8 +587,9 @@ export default function Jornada() {
         ))}
       </div>
 
-      {aba === 'jornada'   && <AbaJornada   colaboradores={colaboradores} me={me} />}
-      {aba === 'registros' && <AbaRegistros colaboradores={colaboradores} me={me} />}
+      {aba === 'jornada'    && <AbaJornada    colaboradores={colaboradores} me={me} />}
+      {aba === 'calendario' && <AbaCalendario colaboradores={colaboradores} />}
+      {aba === 'registros'  && <AbaRegistros  colaboradores={colaboradores} me={me} />}
     </div>
   )
 }

@@ -147,3 +147,9 @@ export const getLocais = (params = {}) => {
 export const criarLocal = (body) => api('/rh/locais', { method: 'POST', body: JSON.stringify(body) })
 export const atualizarLocal = (id, body) => api(`/rh/locais/${id}`, { method: 'PUT', body: JSON.stringify(body) })
 export const excluirLocal = (id) => api(`/rh/locais/${id}`, { method: 'DELETE' })
+
+export const getFeriados = (ano) => api(`/rh/feriados${ano ? '?ano=' + ano : ''}`)
+export const criarFeriado = (body) => api('/rh/feriados', { method: 'POST', body: JSON.stringify(body) })
+export const excluirFeriado = (id) => api(`/rh/feriados/${id}`, { method: 'DELETE' })
+export const sincronizarFeriados = (ano) => api(`/rh/feriados/sincronizar?ano=${ano}`, { method: 'POST' })
+export const getCalendario = (colaborador_id, mes) => api(`/rh/calendario?colaborador_id=${colaborador_id}&mes=${mes}`)

@@ -2,8 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from datetime import date, timedelta, datetime, timezone
 from typing import Optional
+import calendar as cal_module
 import csv
 import io
+import httpx
 from db.supabase_client import supabase as sb
 from auth.deps import get_usuario_rh_atual
 
@@ -672,3 +674,221 @@ async def excluir_local(local_id: str, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     sb.table("locais_permitidos").delete().eq("id", local_id).in_("empresa_id", ids).execute()
     return {"ok": True}
+
+
+# ─── Feriados ─────────────────────────────────────────────────────────────────
+
+@router.get("/feriados")
+async def listar_feriados(ano: int = Query(default=None), rh=Depends(get_usuario_rh_atual)):
+    ids = _empresa_ids(rh)
+    ano = ano or date.today().year
+    inicio = f"{ano}-01-01"
+    fim    = f"{ano}-12-31"
+    # Nacionais (empresa_id IS NULL)
+    nacionais = sb.table("feriados").select("*").is_("empresa_id", "null") \
+        .gte("data", inicio).lte("data", fim).order("data").execute().data or []
+    # Da empresa
+    empresa_res = sb.table("feriados").select("*").in_("empresa_id", ids) \
+        .gte("data", inicio).lte("data", fim).order("data").execute().data or []
+    return nacionais + empresa_res
+
+
+@router.post("/feriados")
+async def criar_feriado(body: dict, rh=Depends(get_usuario_rh_atual)):
+    ids = _empresa_ids(rh)
+    empresa = body.get("empresa_id") or rh.get("empresa_id")
+    if empresa not in ids:
+        raise HTTPException(403, "Sem acesso")
+    payload = {
+        "empresa_id": empresa,
+        "data": body["data"],
+        "descricao": body["descricao"],
+        "tipo": body.get("tipo", "empresa"),
+    }
+    try:
+        res = sb.table("feriados").insert(payload).execute()
+    except Exception as e:
+        raise HTTPException(400, f"Erro ao criar feriado: {e}")
+    return res.data[0]
+
+
+@router.delete("/feriados/{feriado_id}")
+async def excluir_feriado(feriado_id: str, rh=Depends(get_usuario_rh_atual)):
+    ids = _empresa_ids(rh)
+    res = sb.table("feriados").select("empresa_id, tipo").eq("id", feriado_id).single().execute()
+    if not res.data:
+        raise HTTPException(404, "Não encontrado")
+    if res.data["tipo"] == "nacional":
+        raise HTTPException(403, "Feriados nacionais não podem ser excluídos manualmente.")
+    if res.data["empresa_id"] not in ids:
+        raise HTTPException(403, "Sem acesso")
+    sb.table("feriados").delete().eq("id", feriado_id).execute()
+    return {"ok": True}
+
+
+@router.post("/feriados/sincronizar")
+async def sincronizar_feriados_nacionais(ano: int = Query(default=None), rh=Depends(get_usuario_rh_atual)):
+    ano = ano or date.today().year
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get(f"https://brasilapi.com.br/api/feriados/v1/{ano}")
+        if r.status_code != 200:
+            raise HTTPException(502, "Erro ao buscar feriados da BrasilAPI")
+        feriados = r.json()
+
+    inseridos = 0
+    for f in feriados:
+        try:
+            sb.table("feriados").upsert({
+                "empresa_id": None,
+                "data": f["date"],
+                "descricao": f["name"],
+                "tipo": "nacional",
+            }, on_conflict="empresa_id,data", ignore_duplicates=True).execute()
+            inseridos += 1
+        except Exception:
+            pass
+    return {"sincronizados": inseridos, "ano": ano}
+
+
+# ─── Calendário por colaborador ───────────────────────────────────────────────
+
+DIAS_SEMANA_MAP = {"seg": 0, "ter": 1, "qua": 2, "qui": 3, "sex": 4, "sab": 5, "dom": 6}
+
+
+@router.get("/calendario")
+async def get_calendario(
+    colaborador_id: str,
+    mes: str = Query(..., description="AAAA-MM"),
+    rh=Depends(get_usuario_rh_atual),
+):
+    ids = _empresa_ids(rh)
+
+    # Valida acesso ao colaborador
+    colab_res = sb.table("colaboradores").select(
+        "id, nome, empresa_id, modelo_jornada_id"
+    ).eq("id", colaborador_id).in_("empresa_id", ids).single().execute()
+    if not colab_res.data:
+        raise HTTPException(404, "Colaborador não encontrado")
+    colab = colab_res.data
+
+    # Modelo de jornada → dias de trabalho e horários esperados
+    dias_trabalho = {0, 1, 2, 3, 4}  # seg-sex por padrão
+    hora_entrada_esp = None
+    hora_saida_esp   = None
+    tolerancia_entrada = 5
+    tolerancia_saida   = 5
+
+    if colab.get("modelo_jornada_id"):
+        mj = sb.table("modelos_jornada").select("*").eq("id", colab["modelo_jornada_id"]).single().execute().data
+        if mj:
+            dt_str = mj.get("dias_trabalho", "seg,ter,qua,qui,sex")
+            dias_trabalho = {DIAS_SEMANA_MAP[d.strip()] for d in dt_str.split(",") if d.strip() in DIAS_SEMANA_MAP}
+            hora_entrada_esp = mj.get("hora_entrada")
+            hora_saida_esp   = mj.get("hora_saida")
+            tolerancia_entrada = mj.get("tolerancia_entrada_minutos", 5)
+            tolerancia_saida   = mj.get("tolerancia_saida_minutos", 5)
+
+    ano, mes_num = int(mes.split("-")[0]), int(mes.split("-")[1])
+    _, total_dias = cal_module.monthrange(ano, mes_num)
+    inicio = f"{mes}-01"
+    fim    = f"{mes}-{total_dias:02d}"
+    hoje   = date.today()
+
+    # Feriados do período
+    nacionais = sb.table("feriados").select("data").is_("empresa_id", "null") \
+        .gte("data", inicio).lte("data", fim).execute().data or []
+    empresa_fer = sb.table("feriados").select("data").eq("empresa_id", colab["empresa_id"]) \
+        .gte("data", inicio).lte("data", fim).execute().data or []
+    feriados_set = {r["data"] for r in nacionais + empresa_fer}
+
+    # Jornadas do período
+    jornadas_res = sb.table("jornadas_diarias").select("*") \
+        .eq("colaborador_id", colaborador_id) \
+        .gte("data", inicio).lte("data", fim).execute().data or []
+    jornadas_idx = {j["data"]: j for j in jornadas_res}
+
+    # Registros do período
+    regs_res = sb.table("registros_ponto").select("tipo, status, foto_url, registrado_em") \
+        .eq("colaborador_id", colaborador_id) \
+        .gte("registrado_em", inicio + "T00:00:00") \
+        .lte("registrado_em", fim + "T23:59:59").execute().data or []
+
+    # Agrupa registros por data
+    regs_por_dia: dict[str, list] = {}
+    for r in regs_res:
+        d_key = r["registrado_em"][:10]
+        regs_por_dia.setdefault(d_key, []).append(r)
+
+    def minutos(time_str):
+        if not time_str:
+            return None
+        partes = time_str.split(":")
+        return int(partes[0]) * 60 + int(partes[1])
+
+    dias = []
+    for dia_num in range(1, total_dias + 1):
+        d = date(ano, mes_num, dia_num)
+        d_iso = d.isoformat()
+
+        # Fim de semana / folga
+        if d.weekday() not in dias_trabalho:
+            dias.append({"data": d_iso, "status": "folga"})
+            continue
+
+        # Feriado
+        if d_iso in feriados_set:
+            dias.append({"data": d_iso, "status": "feriado"})
+            continue
+
+        # Dia futuro
+        if d > hoje:
+            dias.append({"data": d_iso, "status": "futuro"})
+            continue
+
+        regs = regs_por_dia.get(d_iso, [])
+        jornada = jornadas_idx.get(d_iso)
+
+        # Sem nenhum registro → falta
+        if not regs and not jornada:
+            dias.append({"data": d_iso, "status": "falta"})
+            continue
+
+        # Avalia divergências
+        divergencias = []
+
+        tipos_presentes = {r["tipo"] for r in regs}
+        if "entrada" not in tipos_presentes:
+            divergencias.append("sem_entrada")
+        if "saida" not in tipos_presentes:
+            divergencias.append("sem_saida")
+
+        for r in regs:
+            if r.get("status") != "valido":
+                divergencias.append("local_invalido")
+                break
+
+        for r in regs:
+            if not r.get("foto_url"):
+                divergencias.append("sem_foto")
+                break
+
+        if hora_entrada_esp and regs:
+            entrada_reg = next((r for r in regs if r["tipo"] == "entrada"), None)
+            if entrada_reg:
+                h_reg = minutos(entrada_reg["registrado_em"][11:16])
+                h_esp = minutos(hora_entrada_esp[:5])
+                if h_reg and h_esp and (h_reg - h_esp) > tolerancia_entrada:
+                    divergencias.append("atraso_entrada")
+
+        if hora_saida_esp and regs:
+            saida_reg = next((r for r in regs if r["tipo"] == "saida"), None)
+            if saida_reg:
+                h_reg = minutos(saida_reg["registrado_em"][11:16])
+                h_esp = minutos(hora_saida_esp[:5])
+                if h_reg and h_esp and (h_esp - h_reg) > tolerancia_saida:
+                    divergencias.append("saida_antecipada")
+
+        status = "divergencia" if divergencias else "ok"
+        dias.append({"data": d_iso, "status": status, "divergencias": divergencias})
+
+    return {"colaborador": colab, "mes": mes, "dias": dias}
