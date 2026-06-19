@@ -187,7 +187,7 @@ async def listar_registros(
     if not ids:
         return []
     filtro = [empresa_id] if empresa_id and empresa_id in ids else ids
-    q = sb.table("registros_ponto").select("*").in_("empresa_id", filtro)
+    q = sb.table("registros_ponto").select("*, locais_permitidos(nome)").in_("empresa_id", filtro)
     if colaborador_id:
         q = q.eq("colaborador_id", colaborador_id)
     if tipo:
@@ -203,7 +203,11 @@ async def listar_registros(
         cn = sb.table("colaboradores").select("id, nome").in_("id", ids_colab).execute()
         nomes = {c["id"]: c["nome"] for c in (cn.data or [])}
 
-    return [{**r, "colaborador_nome": nomes.get(r["colaborador_id"], "—")} for r in regs]
+    return [{
+        **r,
+        "colaborador_nome": nomes.get(r["colaborador_id"], "—"),
+        "local_nome": (r.get("locais_permitidos") or {}).get("nome") or r.get("local_nome"),
+    } for r in regs]
 
 
 @router.get("/registros/{registro_id}/foto")
