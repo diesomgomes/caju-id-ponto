@@ -7,7 +7,6 @@ const NAV_SECTIONS = [
     label: 'Principal',
     items: [
       { to: '/dashboard', label: 'Painel de controle' },
-      { to: '/registros', label: 'Registro de batidas' },
       { to: '/jornada', label: 'Acompanhamento de jornada' },
       { to: '/colaboradores', label: 'Colaboradores' },
     ],
@@ -25,7 +24,6 @@ const NAV_SECTIONS = [
 
 const PAGE_LABELS = {
   '/dashboard': 'Painel de controle',
-  '/registros': 'Registro de batidas',
   '/jornada': 'Acompanhamento de jornada',
   '/colaboradores': 'Colaboradores',
   '/locais': 'Localizações',
