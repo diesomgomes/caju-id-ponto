@@ -390,7 +390,7 @@ function ModalAjusteBanco({ colaborador, onFechar }) {
           </div>
         )}
       </div>
-    </Portal>
+    </div></Portal>
   )
 }
 
