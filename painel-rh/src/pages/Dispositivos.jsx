@@ -14,7 +14,6 @@ function ModalQRColabs({ dispositivo, colaboradores, onFechar }) {
   return (
     <Portal><div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[9999] p-4">
       <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        {/* Header */}
         <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200">
           <div>
             <h3 className="font-bold text-gray-900 text-lg">QR Codes para impressão</h3>
@@ -28,28 +27,19 @@ function ModalQRColabs({ dispositivo, colaboradores, onFechar }) {
             <button onClick={onFechar} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
           </div>
         </div>
-
         <div className="p-6 print:p-2">
-          {/* QR do dispositivo (para instalar o PWA) */}
           <div className="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200 text-center print:hidden">
             <p className="text-xs text-gray-500 mb-3 font-medium">URL DO KIOSK — escaneie para abrir/instalar</p>
             <img src={qrUrl(kioskUrl, 160)} alt="QR Kiosk" className="mx-auto rounded-lg" />
             <p className="text-xs text-gray-400 mt-2 font-mono break-all">{kioskUrl}</p>
           </div>
-
-          {/* Grid de QR por colaborador */}
           <p className="text-sm font-semibold text-gray-700 mb-4 print:text-xs">
             QR Codes dos colaboradores ({colaboradores.length})
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 print:grid-cols-3 print:gap-2">
             {colaboradores.map(c => (
               <div key={c.id} className="border border-gray-200 rounded-xl p-4 text-center print:border print:p-2 print:rounded-md">
-                <img
-                  src={qrUrl(c.id, 160)}
-                  alt={c.nome}
-                  className="mx-auto mb-2 print:w-28 print:h-28"
-                  width={160} height={160}
-                />
+                <img src={qrUrl(c.id, 160)} alt={c.nome} className="mx-auto mb-2 print:w-28 print:h-28" width={160} height={160} />
                 <p className="font-semibold text-gray-900 text-sm leading-tight print:text-xs">{c.nome}</p>
                 {c.cargo && <p className="text-gray-400 text-xs mt-0.5 print:text-[10px]">{c.cargo}</p>}
               </div>
@@ -71,6 +61,7 @@ export default function Dispositivos() {
   const [modalQR, setModalQR] = useState(null)
   const [copiado, setCopiado] = useState('')
   const [novaSenha, setNovaSenha] = useState(null)
+  const [senhaCopiada, setSenhaCopiada] = useState('')
 
   async function carregar() {
     setLoading(true)
@@ -104,6 +95,13 @@ export default function Dispositivos() {
     navigator.clipboard.writeText(url).then(() => {
       setCopiado(token)
       setTimeout(() => setCopiado(''), 2000)
+    })
+  }
+
+  function copiarSenha(id, senha) {
+    navigator.clipboard.writeText(senha).then(() => {
+      setSenhaCopiada(id)
+      setTimeout(() => setSenhaCopiada(''), 2000)
     })
   }
 
@@ -174,6 +172,21 @@ export default function Dispositivos() {
                 </div>
               </div>
 
+              {/* PIN do dispositivo */}
+              {d.senha && (
+                <div className="mt-3 pt-3 border-t border-gray-800 flex items-center gap-3">
+                  <div className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-1.5">
+                    <span className="text-xs text-gray-500">PIN:</span>
+                    <span className="font-mono font-bold text-emerald-400 tracking-widest text-sm">{d.senha}</span>
+                  </div>
+                  <button
+                    onClick={() => copiarSenha(d.id, d.senha)}
+                    className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${senhaCopiada === d.id ? 'border-emerald-500 text-emerald-400 bg-emerald-900/20' : 'border-gray-700 text-gray-500 hover:border-gray-600 hover:text-gray-400'}`}>
+                    {senhaCopiada === d.id ? '✓ Copiado' : 'Copiar PIN'}
+                  </button>
+                </div>
+              )}
+
               {/* Mini QR do dispositivo */}
               <div className="mt-4 pt-4 border-t border-gray-800 flex items-center gap-4">
                 <img src={qrUrl(url, 80)} alt="QR" className="rounded-lg flex-shrink-0" width={80} height={80} />
@@ -205,13 +218,11 @@ export default function Dispositivos() {
             </div>
             <h3 className="text-lg font-bold text-gray-100 mb-1">Dispositivo criado!</h3>
             <p className="text-sm text-gray-400 mb-6">{novaSenha.nome}</p>
-
             <p className="text-xs text-gray-500 uppercase tracking-widest mb-2">Senha de acesso (PIN)</p>
             <div className="bg-gray-800 rounded-xl px-6 py-4 mb-2">
               <span className="text-4xl font-mono font-bold tracking-[0.3em] text-emerald-400">{novaSenha.senha}</span>
             </div>
-            <p className="text-xs text-gray-600 mb-6">Anote este PIN — ele não será exibido novamente.</p>
-
+            <p className="text-xs text-gray-600 mb-6">O PIN também fica visível no cadastro do dispositivo.</p>
             <button
               onClick={() => setNovaSenha(null)}
               className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 rounded-xl font-semibold text-sm">

@@ -48,9 +48,24 @@ export default function Kiosk() {
   const streamRef = useRef()
   const rafRef    = useRef()
   const faseRef   = useRef(fase)
+  const pinRef    = useRef('')
   faseRef.current = fase
 
   const accentColor = branding?.cor_fundo || '#059669'
+
+  // ── Fullscreen automático ──────────────────────────────────────────────────
+  useEffect(() => {
+    const entrarFullscreen = () => {
+      const el = document.documentElement
+      if (el.requestFullscreen) el.requestFullscreen().catch(() => {})
+      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen()
+    }
+    // Tenta imediatamente; se bloqueado (precisa de gesto), tenta no primeiro clique/toque
+    entrarFullscreen()
+    const onGesto = () => { entrarFullscreen(); document.removeEventListener('click', onGesto) }
+    document.addEventListener('click', onGesto)
+    return () => document.removeEventListener('click', onGesto)
+  }, [])
 
   // ── Carregar branding ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -58,7 +73,6 @@ export default function Kiosk() {
       .then(r => { if (!r.ok) throw new Error('Dispositivo inválido'); return r.json() })
       .then(b => {
         setBranding(b)
-        // Se não tem senha, autentica automaticamente
         if (!b.tem_senha) autenticar('')
       })
       .catch(e => setErroGlobal(e.message))
@@ -80,11 +94,34 @@ export default function Kiosk() {
       const data = await res.json()
       setInfo(data)
       setPinOk(true)
+      pinRef.current = senha
     } catch (e) {
       setPinErro(e.message)
     } finally {
-      setAutenticando(false) }
+      setAutenticando(false)
+    }
   }
+
+  // ── Auto-refresh a cada 30s (atualiza lista de colaboradores) ─────────────
+  useEffect(() => {
+    if (!pinOk) return
+    const intervalo = setInterval(async () => {
+      // Só atualiza se não está em meio a um registro
+      if (faseRef.current !== 'scan') return
+      try {
+        const res = await fetch(`${API_URL}/kiosk/${token}/auth`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ senha: pinRef.current }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setInfo(data)
+        }
+      } catch (_) {}
+    }, 30000)
+    return () => clearInterval(intervalo)
+  }, [pinOk, token])
 
   // ── Câmera ────────────────────────────────────────────────────────────────
   const pararCamera = useCallback(() => {
