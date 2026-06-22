@@ -1,0 +1,449 @@
+================================================================================
+  CAJU ID — PROMPT COMPLETO PARA RECRIAÇÃO DO SISTEMA EM IA NO-CODE
+================================================================================
+
+Você vai construir um sistema completo de ponto eletrônico chamado CAJU ID.
+Leia todo este documento antes de começar. Ele descreve a arquitetura, as telas,
+as regras de negócio e o banco de dados do sistema.
+
+--------------------------------------------------------------------------------
+VISÃO GERAL
+--------------------------------------------------------------------------------
+
+O sistema tem três partes:
+
+1. PAINEL RH (web, acesso desktop)
+   Usado pelos gestores de RH para gerenciar colaboradores, jornadas, registros
+   de ponto, banco de horas, dispositivos kiosk e configurações da empresa.
+
+2. PWA COLABORADOR (web, acesso mobile)
+   Aplicativo que o colaborador usa no próprio celular para bater ponto com
+   geolocalização e selfie.
+
+3. KIOSK (web, tela cheia, dispositivo fixo)
+   Tela dedicada instalada numa tablet ou computador fixo da empresa. O
+   colaborador bate ponto escaneando um QR Code pessoal ou digitando o CPF.
+   A câmera captura uma selfie automaticamente.
+
+BACKEND: API REST em Python (FastAPI).
+BANCO: Supabase (PostgreSQL hospedado + autenticação + storage de fotos).
+
+--------------------------------------------------------------------------------
+TECNOLOGIAS RECOMENDADAS
+--------------------------------------------------------------------------------
+
+Backend:
+  - Python 3.11+ com FastAPI
+  - Supabase Python SDK (supabase-py) com chave service_role
+  - APScheduler para jobs agendados (limpeza de fotos antigas)
+  - Pillow para processamento de imagens
+
+Frontend (Painel RH e PWA):
+  - React 18 + Vite
+  - Tailwind CSS
+  - React Router DOM
+  - Chart.js + react-chartjs-2 (gráficos)
+  - Leaflet (mapa de registros)
+  - jsQR (leitura de QR Code pela câmera)
+  - date-fns (formatação de datas)
+
+Banco de dados:
+  - Supabase (PostgreSQL)
+  - Row Level Security (RLS) habilitado
+  - Supabase Auth para login dos colaboradores no PWA
+  - Supabase Storage para fotos (bucket: fotos-ponto)
+
+Deploy:
+  - Docker + Docker Compose
+  - nginx-proxy para roteamento por domínio
+  - Let's Encrypt (acme-companion) para SSL automático
+
+--------------------------------------------------------------------------------
+BANCO DE DADOS — TABELAS PRINCIPAIS
+--------------------------------------------------------------------------------
+
+** empresas **
+  id UUID PK
+  nome TEXT
+  cnpj TEXT
+  endereco TEXT
+  logo_url TEXT
+  login_config JSONB  -- configurações visuais do painel RH (cor, título, imagem)
+
+** usuarios_rh **
+  id UUID PK  -- mesmo UUID do Supabase Auth
+  nome TEXT
+  email TEXT
+  empresa_id UUID FK → empresas
+  perfil TEXT  -- 'admin' | 'rh'
+  ativo BOOLEAN DEFAULT true
+
+** colaboradores **
+  id UUID PK
+  empresa_id UUID FK → empresas
+  nome TEXT
+  cpf TEXT
+  pis TEXT
+  email TEXT
+  cargo TEXT
+  departamento TEXT
+  modelo_jornada_id UUID FK → modelos_jornada
+  carga_horaria_diaria INTERVAL DEFAULT '08:00:00'
+  modo_ponto TEXT DEFAULT 'ambos'  -- 'app' | 'kiosk' | 'ambos'
+  ativo BOOLEAN DEFAULT true
+  -- criado pelo Supabase Auth; o UUID do colaborador = UUID do usuário Auth
+
+** modelos_jornada **
+  id UUID PK
+  empresa_id UUID FK → empresas
+  nome TEXT
+  dias_semana INT[]  -- ex: [1,2,3,4,5] = seg a sex
+  hora_entrada TIME
+  hora_saida_almoco TIME
+  hora_retorno_almoco TIME
+  hora_saida TIME
+  tolerancia_minutos INT DEFAULT 10
+
+** locais_permitidos **
+  id UUID PK
+  empresa_id UUID FK → empresas
+  nome TEXT
+  lat DOUBLE PRECISION
+  lng DOUBLE PRECISION
+  raio_metros INT DEFAULT 100
+
+** colaborador_locais **  (N:N entre colaboradores e locais)
+  colaborador_id UUID FK → colaboradores
+  local_id UUID FK → locais_permitidos
+
+** registros_ponto **
+  id UUID PK
+  colaborador_id UUID FK → colaboradores
+  empresa_id UUID FK → empresas
+  tipo TEXT  -- 'entrada' | 'saida_almoco' | 'retorno_almoco' | 'saida'
+  registrado_em TIMESTAMPTZ DEFAULT now()
+  lat_registro DOUBLE PRECISION  -- nullable (kiosk não tem GPS)
+  lng_registro DOUBLE PRECISION  -- nullable
+  distancia_metros INT  -- nullable
+  local_permitido_id UUID FK → locais_permitidos  -- nullable
+  foto_url TEXT  -- path interno do bucket fotos-ponto
+  ip_dispositivo TEXT
+  user_agent TEXT
+  status TEXT DEFAULT 'valido'  -- 'valido' | 'rejeitado' | 'manual'
+  motivo_rejeicao TEXT
+  hash_integridade TEXT  -- SHA256 encadeado para auditoria
+  hash_anterior TEXT
+
+** jornadas_diarias **  (calculadas automaticamente)
+  id UUID PK
+  colaborador_id UUID FK → colaboradores
+  data DATE
+  entrada TIMESTAMPTZ
+  saida_almoco TIMESTAMPTZ
+  retorno_almoco TIMESTAMPTZ
+  saida TIMESTAMPTZ
+  horas_trabalhadas INTERVAL
+  horas_esperadas INTERVAL
+  saldo_dia INTERVAL
+  saldo_acumulado INTERVAL
+  status TEXT  -- 'completo' | 'incompleto' | 'falta' | 'folga'
+
+** ajustes_banco_horas **
+  id UUID PK
+  colaborador_id UUID FK → colaboradores
+  minutos INT  -- positivo = crédito, negativo = débito
+  descricao TEXT
+  criado_por UUID FK → usuarios_rh
+  criado_em TIMESTAMPTZ DEFAULT now()
+
+** dispositivos_ponto **
+  id UUID PK
+  empresa_id UUID FK → empresas
+  nome TEXT
+  token UUID DEFAULT gen_random_uuid()  -- usado na URL do kiosk
+  senha TEXT  -- PIN de 6 dígitos gerado automaticamente
+  endereco TEXT  -- endereço físico do dispositivo
+  lat DOUBLE PRECISION  -- coordenadas do local físico
+  lng DOUBLE PRECISION
+  ativo BOOLEAN DEFAULT true
+  criado_em TIMESTAMPTZ DEFAULT now()
+
+** feriados **
+  id UUID PK
+  empresa_id UUID FK → empresas
+  data DATE
+  nome TEXT
+  tipo TEXT  -- 'nacional' | 'estadual' | 'municipal' | 'empresa'
+
+--------------------------------------------------------------------------------
+REGRAS DE NEGÓCIO
+--------------------------------------------------------------------------------
+
+SEQUÊNCIA DE BATIDAS
+  A ordem obrigatória de tipos é:
+  entrada → saida_almoco → retorno_almoco → saida
+  O sistema determina automaticamente qual é a próxima batida esperada com base
+  no último registro do dia. Se o dia já foi encerrado (saída registrada), não
+  permite novo registro.
+
+VALIDAÇÃO DE LOCALIZAÇÃO (PWA)
+  Ao bater ponto pelo app, o sistema verifica se o colaborador está dentro do
+  raio de algum local permitido vinculado a ele. Se não estiver, o registro é
+  salvo com status 'rejeitado' e motivo_rejeicao preenchido.
+  O gestor pode revisar e aprovar manualmente no painel RH.
+
+BANCO DE HORAS
+  O saldo acumulado é calculado somando saldo_dia de todas as jornadas mais os
+  ajustes manuais em ajustes_banco_horas.
+  Exibir como +HH:MM ou -HH:MM.
+
+INTEGRIDADE DOS REGISTROS
+  Cada registro tem um hash SHA256 calculado sobre seus campos + hash do
+  registro anterior, formando uma cadeia imutável para auditoria.
+
+KIOSK
+  - Acessado via URL única: /kiosk/{token}
+  - Se o dispositivo tem senha (PIN), exibe tela de autenticação antes
+  - Após autenticação, abre a câmera em tela cheia
+  - Modos: QR Code (escaneia UUID do colaborador) ou CPF (digitado)
+  - Ao identificar o colaborador, conta regressiva de 3 segundos,
+    captura selfie e registra o ponto automaticamente
+  - Usa lat/lng cadastrado no dispositivo físico para o registro
+  - Auto-refresh a cada 30 segundos para manter a sessão ativa
+  - Entra em fullscreen automaticamente
+
+--------------------------------------------------------------------------------
+PAINEL RH — TELAS E FUNCIONALIDADES
+--------------------------------------------------------------------------------
+
+LOGIN
+  - Tela split-screen: lado esquerdo com cor/imagem/texto personalizável,
+    lado direito com formulário de email e senha
+  - As configurações visuais são editáveis pelo admin e salvas no banco
+
+DASHBOARD
+  - Cards com totais: colaboradores ativos, registros hoje, pendentes
+  - Gráfico de barras com registros dos últimos 7 dias
+  - Mini calendário do mês atual com indicação de dias com registro
+
+COLABORADORES
+  - Tabela com busca, filtro por empresa
+  - Criar / editar / excluir colaboradores
+  - Campos: nome, CPF, PIS, email, cargo, departamento, jornada, modo_ponto
+  - Ações por colaborador:
+    * Editar dados
+    * Alterar senha do app
+    * Ajustar banco de horas (+ ou - horas com descrição)
+    * Ver QR Code pessoal (baixar, compartilhar, imprimir)
+    * Configurar jornada individual
+    * Configurar locais permitidos
+
+REGISTROS DE PONTO
+  - Tabela filtrável por colaborador, data e status
+  - Ver foto da selfie em modal
+  - Ver localização no mapa (Leaflet) com marcador
+  - Aprovar registros rejeitados
+  - Ajustar horário de um registro manualmente
+  - Exportar espelho de ponto em PDF ou Excel por colaborador e período
+
+JORNADA
+  - Calendário mensal por colaborador
+  - Cada dia mostra horários, horas trabalhadas e saldo
+  - Totais do mês: horas esperadas, trabalhadas e saldo acumulado
+
+DISPOSITIVOS (KIOSK)
+  - Listar dispositivos cadastrados com URL, PIN e endereço
+  - Criar novo dispositivo: nome + endereço + GPS (capturar do browser)
+  - PIN gerado automaticamente e exibido uma vez (também visível no card)
+  - Botão copiar PIN e copiar URL
+  - Mini QR Code da URL para instalar o kiosk
+  - Modal com todos os QR Codes dos colaboradores para imprimir
+
+APARÊNCIA DO LOGIN
+  - Escolher cor de fundo (8 sugestões + picker personalizado)
+  - Modo texto: título e subtítulo editáveis
+  - Modo imagem: upload de banner ou URL externa
+  - Preview em tempo real
+
+FERIADOS
+  - Importar feriados nacionais automaticamente via API pública
+  - Adicionar feriados customizados (estadual, municipal, empresa)
+  - Calendário visual com os feriados marcados
+
+--------------------------------------------------------------------------------
+PWA COLABORADOR — TELAS
+--------------------------------------------------------------------------------
+
+LOGIN
+  - Email e senha (Supabase Auth)
+  - Auto-login se o token ainda for válido
+
+HOME (BATER PONTO)
+  - Mostra o próximo tipo de batida esperado
+  - Botão central grande para registrar
+  - Captura GPS + selfie pela câmera frontal ao confirmar
+  - Feedback visual de sucesso ou erro
+
+SALDO DE HORAS
+  - Saldo atual do banco de horas
+  - Horas do mês atual: esperadas, trabalhadas, diferença
+
+HISTÓRICO
+  - Espelho de ponto mensal
+  - Cada dia com os horários de cada batida
+  - Status do dia (completo, incompleto, falta, folga)
+
+--------------------------------------------------------------------------------
+KIOSK — FLUXO COMPLETO
+--------------------------------------------------------------------------------
+
+1. Acessar /kiosk/{token}
+2. Buscar branding público (GET /kiosk/{token}/branding):
+   - Nome e logo da empresa
+   - Cor de destaque
+   - Se tem senha (tem_senha: bool)
+3. Se tem_senha=true: exibir tela de PIN
+4. Validar PIN (POST /kiosk/{token}/auth) → retorna lista de colaboradores
+5. Iniciar câmera em tela cheia
+6. Loop de scan QR ou aguardar digitação de CPF
+7. Ao identificar colaborador: mostrar nome + contagem 3, 2, 1
+8. Capturar frame da câmera como JPEG base64
+9. Enviar (POST /kiosk/{token}/ponto) com colaborador_id e foto
+10. Tela de sucesso (verde) com nome, tipo e horário — 5 segundos
+11. Voltar ao scan automaticamente
+
+--------------------------------------------------------------------------------
+API — PRINCIPAIS ENDPOINTS
+--------------------------------------------------------------------------------
+
+PÚBLICOS (sem autenticação):
+  GET  /kiosk/{token}/branding      → branding + tem_senha
+  POST /kiosk/{token}/auth          → valida PIN, retorna colaboradores
+  POST /kiosk/{token}/ponto         → registra batida pelo kiosk
+  GET  /rh/login-config             → config visual do login
+
+PAINEL RH (requer token JWT do usuário RH):
+  GET/POST   /rh/colaboradores
+  PATCH/DEL  /rh/colaboradores/{id}
+  GET/POST   /rh/dispositivos
+  DEL        /rh/dispositivos/{id}
+  GET/POST   /rh/colaboradores/{id}/ajuste-banco
+  DEL        /rh/ajuste-banco/{id}
+  PATCH      /rh/login-config
+  GET        /rh/jornadas/exportar
+
+PWA COLABORADOR (requer token JWT do colaborador via Supabase Auth):
+  POST /ponto/registrar             → registra batida com GPS e foto
+  GET  /ponto/hoje/{id}             → registros do dia
+  GET  /ponto/saldo/{id}            → saldo do banco de horas
+  GET  /ponto/historico/{id}        → histórico mensal
+
+--------------------------------------------------------------------------------
+AUTENTICAÇÃO
+--------------------------------------------------------------------------------
+
+PAINEL RH:
+  - Login com email/senha via Supabase Auth
+  - Backend valida o JWT do Supabase e busca o usuario_rh correspondente
+  - access_token expira em 1h, refresh_token em 60 dias
+  - Frontend renova automaticamente antes de expirar
+
+PWA COLABORADOR:
+  - Login com email/senha via Supabase Auth (mesma instância)
+  - O colaborador tem um usuário Auth vinculado ao seu cadastro em colaboradores
+
+KIOSK:
+  - Sem autenticação de usuário
+  - Protegido por PIN de 6 dígitos gerado no cadastro do dispositivo
+  - Token UUID único na URL garante que apenas links válidos funcionem
+
+--------------------------------------------------------------------------------
+ESTRUTURA DE PASTAS SUGERIDA
+--------------------------------------------------------------------------------
+
+caju-id/
+├── backend/
+│   ├── main.py                  # FastAPI app, inclui routers
+│   ├── routers/
+│   │   ├── ponto.py             # endpoints do PWA
+│   │   ├── rh.py                # endpoints do painel RH
+│   │   └── kiosk.py             # endpoints do kiosk
+│   ├── services/
+│   │   ├── hash_chain.py        # SHA256 encadeado
+│   │   ├── sequencia.py         # próxima batida esperada
+│   │   └── storage.py           # upload de selfie no Supabase
+│   ├── db/
+│   │   └── supabase_client.py   # cliente Supabase com service_role
+│   ├── requirements.txt
+│   ├── Dockerfile
+│   └── .env
+├── painel-rh/
+│   ├── src/
+│   │   ├── pages/               # Dashboard, Colaboradores, Dispositivos...
+│   │   ├── components/          # Portal, IconBtn, etc.
+│   │   └── api.js               # funções fetch para o backend
+│   ├── public/config.js         # injeta __API_URL__ em runtime
+│   ├── entrypoint.sh            # injeta variáveis no config.js ao subir
+│   ├── Dockerfile
+│   └── package.json
+├── pwa-colaborador/
+│   ├── src/
+│   │   ├── pages/               # Login, Home, Saldo, Historico
+│   │   └── api.js
+│   ├── public/config.js
+│   ├── entrypoint.sh
+│   └── Dockerfile
+├── migrations/                  # SQLs para rodar no Supabase em ordem
+├── docker-compose.yml
+├── .env.example
+└── README.md
+
+--------------------------------------------------------------------------------
+VARIÁVEIS DE AMBIENTE
+--------------------------------------------------------------------------------
+
+backend/.env:
+  SUPABASE_URL=https://xxxx.supabase.co
+  SUPABASE_SERVICE_ROLE_KEY=eyJ...
+  TZ_DEFAULT=America/Sao_Paulo
+
+.env (raiz, para Docker):
+  HOST_RH=cajuid.seudominio.com.br
+  HOST_APP=cajuidapp.seudominio.com.br
+  HOST_API=cajuidapi.seudominio.com.br
+  SSL_EMAIL=seu@email.com
+  SUPABASE_URL=https://xxxx.supabase.co
+  SUPABASE_ANON_KEY=eyJ...
+
+--------------------------------------------------------------------------------
+OBSERVAÇÕES IMPORTANTES
+--------------------------------------------------------------------------------
+
+1. O frontend NÃO usa variáveis de ambiente em build time (sem VITE_*).
+   A URL da API é injetada em runtime via /public/config.js pelo entrypoint.sh.
+   Isso permite usar a mesma imagem Docker em qualquer ambiente.
+
+2. O Supabase service_role bypassa o RLS — use SOMENTE no backend.
+   O frontend usa a anon key, que respeita o RLS.
+
+3. As fotos são armazenadas no Supabase Storage (bucket privado fotos-ponto)
+   com o path: {empresa_id}/{colaborador_id}/{timestamp}.jpg
+   Para exibir, o backend gera URLs assinadas com validade de 1 hora.
+
+4. O hash de integridade é SHA256 de:
+   colaborador_id + tipo + lat + lng + foto_url + registrado_em + hash_anterior
+   Isso cria uma cadeia imutável auditável.
+
+5. O kiosk deve funcionar offline-first: carregar colaboradores no auth e
+   manter em memória. O auto-refresh silencioso a cada 30s atualiza a lista
+   sem perder o estado de autenticação.
+
+6. A tela do kiosk entra em fullscreen automaticamente (requestFullscreen)
+   para esconder a barra do navegador e dar aparência de app dedicado.
+
+7. Registros via kiosk usam as coordenadas lat/lng cadastradas no dispositivo
+   físico, não GPS do browser (tablet fixo não tem GPS confiável).
+
+================================================================================
+FIM DO PROMPT
+================================================================================
