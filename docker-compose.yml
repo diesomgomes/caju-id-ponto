@@ -37,8 +37,8 @@ services:
     build: ./backend
     env_file: ./backend/.env
     environment:
-      - VIRTUAL_HOST=api.${DOMAIN}
-      - LETSENCRYPT_HOST=api.${DOMAIN}
+      - VIRTUAL_HOST=${HOST_API}
+      - LETSENCRYPT_HOST=${HOST_API}
       - VIRTUAL_PORT=8000
       - PORT=8000
     restart: unless-stopped
@@ -47,9 +47,9 @@ services:
   pwa:
     build: ./pwa-colaborador
     environment:
-      - VIRTUAL_HOST=app.${DOMAIN}
-      - LETSENCRYPT_HOST=app.${DOMAIN}
-      - API_URL=https://api.${DOMAIN}
+      - VIRTUAL_HOST=${HOST_APP}
+      - LETSENCRYPT_HOST=${HOST_APP}
+      - API_URL=https://${HOST_API}
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
     restart: unless-stopped
@@ -58,9 +58,9 @@ services:
   painel-rh:
     build: ./painel-rh
     environment:
-      - VIRTUAL_HOST=rh.${DOMAIN}
-      - LETSENCRYPT_HOST=rh.${DOMAIN}
-      - API_URL=https://api.${DOMAIN}
+      - VIRTUAL_HOST=${HOST_RH}
+      - LETSENCRYPT_HOST=${HOST_RH}
+      - API_URL=https://${HOST_API}
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
     restart: unless-stopped
