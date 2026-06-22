@@ -983,11 +983,14 @@ async def criar_dispositivo(body: dict, rh=Depends(get_usuario_rh_atual)):
     if not nome:
         raise HTTPException(400, "Nome obrigatório.")
     senha = "".join(random.choices(string.digits, k=6))
-    res = sb.table("dispositivos_ponto").insert({
-        "empresa_id": empresa_id,
-        "nome": nome,
-        "senha": senha,
-    }).execute()
+    payload = {"empresa_id": empresa_id, "nome": nome, "senha": senha}
+    if body.get("endereco"):
+        payload["endereco"] = str(body["endereco"]).strip()
+    if body.get("lat") is not None:
+        payload["lat"] = float(body["lat"])
+    if body.get("lng") is not None:
+        payload["lng"] = float(body["lng"])
+    res = sb.table("dispositivos_ponto").insert(payload).execute()
     return res.data[0]
 
 

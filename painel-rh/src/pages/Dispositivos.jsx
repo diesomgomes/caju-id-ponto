@@ -56,6 +56,10 @@ export default function Dispositivos() {
   const [colaboradores, setColaboradores] = useState([])
   const [loading, setLoading] = useState(false)
   const [nome, setNome] = useState('')
+  const [endereco, setEndereco] = useState('')
+  const [lat, setLat] = useState('')
+  const [lng, setLng] = useState('')
+  const [buscandoGps, setBuscandoGps] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
   const [modalQR, setModalQR] = useState(null)
@@ -74,12 +78,28 @@ export default function Dispositivos() {
 
   useEffect(() => { carregar() }, [])
 
+  function capturarGps() {
+    if (!navigator.geolocation) return setErro('Geolocalização não disponível neste browser.')
+    setBuscandoGps(true)
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        setLat(pos.coords.latitude.toFixed(6))
+        setLng(pos.coords.longitude.toFixed(6))
+        setBuscandoGps(false)
+      },
+      () => { setErro('Não foi possível obter a localização.'); setBuscandoGps(false) }
+    )
+  }
+
   async function criar() {
     if (!nome.trim()) return setErro('Informe um nome para o dispositivo.')
     setErro(''); setSalvando(true)
     try {
-      const novo = await criarDispositivo({ nome: nome.trim() })
-      setNome('')
+      const payload = { nome: nome.trim() }
+      if (endereco.trim()) payload.endereco = endereco.trim()
+      if (lat && lng) { payload.lat = parseFloat(lat); payload.lng = parseFloat(lng) }
+      const novo = await criarDispositivo(payload)
+      setNome(''); setEndereco(''); setLat(''); setLng('')
       if (novo?.senha) setNovaSenha({ nome: novo.nome, senha: novo.senha, token: novo.token })
       carregar()
     } catch (e) { setErro(e.message) } finally { setSalvando(false) }
@@ -115,6 +135,7 @@ export default function Dispositivos() {
       {/* Novo dispositivo */}
       <div className="bg-gray-900 rounded-xl border border-gray-800 p-5 space-y-3">
         <p className="text-sm font-semibold text-gray-300">Novo dispositivo</p>
+
         <div className="flex gap-3">
           <input
             type="text"
@@ -124,9 +145,42 @@ export default function Dispositivos() {
             placeholder="Ex: Portaria Principal, Refeitório..."
             className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm"
           />
+        </div>
+
+        <div>
+          <label className="text-xs text-gray-500 block mb-1">Endereço / Local (opcional)</label>
+          <input
+            type="text"
+            value={endereco}
+            onChange={e => setEndereco(e.target.value)}
+            placeholder="Ex: Rua das Flores, 100 — Portaria Principal"
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm"
+          />
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs text-gray-500">Coordenadas GPS (opcional)</label>
+            <button onClick={capturarGps} disabled={buscandoGps}
+              className="text-xs text-emerald-400 hover:text-emerald-300 disabled:opacity-50 flex items-center gap-1">
+              {buscandoGps ? 'Buscando…' : '📍 Capturar localização atual'}
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <input type="text" value={lat} onChange={e => setLat(e.target.value)}
+              placeholder="Latitude  ex: -23.550520"
+              className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm font-mono" />
+            <input type="text" value={lng} onChange={e => setLng(e.target.value)}
+              placeholder="Longitude  ex: -46.633308"
+              className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm font-mono" />
+          </div>
+          <p className="text-xs text-gray-600 mt-1">Usado para registrar a localização nos pontos batidos neste dispositivo.</p>
+        </div>
+
+        <div className="flex justify-end">
           <button onClick={criar} disabled={salvando}
-            className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-semibold">
-            {salvando ? 'Criando…' : '+ Criar'}
+            className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-5 py-2 rounded-lg text-sm font-semibold">
+            {salvando ? 'Criando…' : '+ Criar dispositivo'}
           </button>
         </div>
         {erro && <p className="text-red-400 text-sm">{erro}</p>}
@@ -151,6 +205,10 @@ export default function Dispositivos() {
                     <p className="font-semibold text-gray-100">{d.nome}</p>
                   </div>
                   <p className="text-xs text-gray-500 font-mono truncate">{url}</p>
+                  {d.endereco && <p className="text-xs text-gray-400 mt-0.5">📍 {d.endereco}</p>}
+                  {d.lat && d.lng && (
+                    <p className="text-xs text-gray-600 font-mono mt-0.5">{d.lat}, {d.lng}</p>
+                  )}
                   <p className="text-xs text-gray-600 mt-1">
                     Criado em {new Date(d.criado_em).toLocaleDateString('pt-BR')}
                   </p>
