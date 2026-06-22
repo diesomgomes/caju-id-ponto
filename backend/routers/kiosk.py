@@ -1,10 +1,14 @@
 import base64
+import logging
+import traceback
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException
 
 from db.supabase_client import supabase as sb
+
+logger = logging.getLogger(__name__)
 from services.hash_chain import calcular_hash
 from services.sequencia import proxima_batida_esperada
 from services.storage import upload_selfie
@@ -144,48 +148,53 @@ async def kiosk_ponto(token: str, body: dict):
 
     tipo = proximos[0]
 
+    # Upload foto — falha silenciosa (não bloqueia o registro)
     foto_url = None
     if foto_b64:
         try:
             conteudo = base64.b64decode(foto_b64.split(",")[-1])
             foto_url = upload_selfie(empresa_id, colaborador_id, conteudo)
         except Exception as e:
-            raise HTTPException(502, f"Falha no upload da foto: {e}")
+            logger.warning(f"kiosk_ponto: upload foto falhou (sem foto): {e}")
 
-    ult_hash = (
-        sb.table("registros_ponto")
-        .select("hash_integridade")
-        .eq("colaborador_id", colaborador_id)
-        .order("registrado_em", desc=True)
-        .limit(1)
-        .execute()
-    )
-    hash_anterior = ult_hash.data[0]["hash_integridade"] if ult_hash.data else None
-    registrado_em_str = agora_utc.isoformat()
+    try:
+        ult_hash = (
+            sb.table("registros_ponto")
+            .select("hash_integridade")
+            .eq("colaborador_id", colaborador_id)
+            .order("registrado_em", desc=True)
+            .limit(1)
+            .execute()
+        )
+        hash_anterior = ult_hash.data[0]["hash_integridade"] if ult_hash.data else None
+        registrado_em_str = agora_utc.isoformat()
 
-    hash_atual = calcular_hash(
-        {"colaborador_id": colaborador_id, "tipo": tipo, "lat_registro": None,
-         "lng_registro": None, "foto_url": foto_url, "registrado_em": registrado_em_str},
-        hash_anterior,
-    )
+        hash_atual = calcular_hash(
+            {"colaborador_id": colaborador_id, "tipo": tipo, "lat_registro": None,
+             "lng_registro": None, "foto_url": foto_url, "registrado_em": registrado_em_str},
+            hash_anterior,
+        )
 
-    sb.table("registros_ponto").insert({
-        "colaborador_id": colaborador_id,
-        "empresa_id": empresa_id,
-        "tipo": tipo,
-        "lat_registro": None,
-        "lng_registro": None,
-        "distancia_metros": None,
-        "local_permitido_id": None,
-        "foto_url": foto_url,
-        "ip_dispositivo": None,
-        "user_agent": f"kiosk/{device['id']}",
-        "hash_integridade": hash_atual,
-        "hash_anterior": hash_anterior,
-        "status": "valido",
-        "motivo_rejeicao": None,
-        "registrado_em": registrado_em_str,
-    }).execute()
+        sb.table("registros_ponto").insert({
+            "colaborador_id": colaborador_id,
+            "empresa_id": empresa_id,
+            "tipo": tipo,
+            "lat_registro": None,
+            "lng_registro": None,
+            "distancia_metros": None,
+            "local_permitido_id": None,
+            "foto_url": foto_url,
+            "ip_dispositivo": None,
+            "user_agent": f"kiosk/{device['id']}",
+            "hash_integridade": hash_atual,
+            "hash_anterior": hash_anterior,
+            "status": "valido",
+            "motivo_rejeicao": None,
+            "registrado_em": registrado_em_str,
+        }).execute()
+    except Exception as e:
+        logger.error(f"kiosk_ponto INSERT error: {traceback.format_exc()}")
+        raise HTTPException(500, f"Erro ao registrar ponto: {str(e)}")
 
     return {
         "ok": True,
