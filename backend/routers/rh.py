@@ -972,6 +972,7 @@ async def listar_dispositivos(rh=Depends(get_usuario_rh_atual)):
 
 @router.post("/dispositivos")
 async def criar_dispositivo(body: dict, rh=Depends(get_usuario_rh_atual)):
+    import random, string
     empresa_id = rh.get("empresa_id")
     if not empresa_id:
         ids = _empresa_ids(rh)
@@ -981,9 +982,11 @@ async def criar_dispositivo(body: dict, rh=Depends(get_usuario_rh_atual)):
     nome = str(body.get("nome", "")).strip()
     if not nome:
         raise HTTPException(400, "Nome obrigatório.")
+    senha = "".join(random.choices(string.digits, k=6))
     res = sb.table("dispositivos_ponto").insert({
         "empresa_id": empresa_id,
         "nome": nome,
+        "senha": senha,
     }).execute()
     return res.data[0]
 

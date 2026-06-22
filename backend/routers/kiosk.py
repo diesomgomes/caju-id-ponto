@@ -35,11 +35,31 @@ def _get_device(token: str) -> dict:
     return res.data[0]
 
 
-@router.get("/{token}")
-async def kiosk_info(token: str):
+@router.get("/{token}/branding")
+async def kiosk_branding(token: str):
+    """Retorna apenas branding público para a tela de PIN."""
     device = _get_device(token)
-    empresa_id = device["empresa_id"]
+    emp = sb.table("empresas").select("nome, logo_url, login_config").eq("id", device["empresa_id"]).limit(1).execute()
+    empresa = emp.data[0] if emp.data else {}
+    return {
+        "dispositivo_nome": device["nome"],
+        "empresa_nome": empresa.get("nome", ""),
+        "empresa_logo": empresa.get("logo_url", ""),
+        "cor_fundo": (empresa.get("login_config") or {}).get("cor_fundo", "#059669"),
+        "tem_senha": bool(device.get("senha")),
+    }
 
+
+@router.post("/{token}/auth")
+async def kiosk_auth(token: str, body: dict):
+    """Valida senha e retorna dados completos do dispositivo."""
+    device = _get_device(token)
+    senha_informada = str(body.get("senha", "")).strip()
+
+    if device.get("senha") and device["senha"] != senha_informada:
+        raise HTTPException(401, "Senha incorreta.")
+
+    empresa_id = device["empresa_id"]
     emp = sb.table("empresas").select("id, nome, logo_url, login_config").eq("id", empresa_id).limit(1).execute()
     empresa = emp.data[0] if emp.data else {}
 
@@ -68,7 +88,7 @@ async def kiosk_ponto(token: str, body: dict):
     cpf = body.get("cpf")
     foto_b64: str | None = body.get("foto")
 
-    # Localizar colaborador
+    # Localizar colaborador — tenta com e sem formatação
     if colaborador_id:
         res = (
             sb.table("colaboradores")
@@ -79,15 +99,22 @@ async def kiosk_ponto(token: str, body: dict):
             .execute()
         )
     elif cpf:
-        cpf_limpo = cpf.replace(".", "").replace("-", "").replace("/", "").strip()
-        res = (
+        cpf_limpo = "".join(c for c in cpf if c.isdigit())
+        # Busca todos e filtra em Python (CPF pode estar formatado ou não no banco)
+        todos = (
             sb.table("colaboradores")
             .select("*")
-            .eq("cpf", cpf_limpo)
             .eq("empresa_id", empresa_id)
-            .limit(1)
+            .eq("ativo", True)
             .execute()
+        ).data or []
+        encontrado = next(
+            (c for c in todos if "".join(d for d in (c.get("cpf") or "") if d.isdigit()) == cpf_limpo),
+            None,
         )
+        if not encontrado:
+            raise HTTPException(404, "CPF não encontrado nesta empresa.")
+        res = type("R", (), {"data": [encontrado]})()
     else:
         raise HTTPException(400, "Informe colaborador_id ou cpf.")
 
@@ -100,7 +127,6 @@ async def kiosk_ponto(token: str, body: dict):
     agora_utc = datetime.now(timezone.utc)
     hoje_br = agora_utc.astimezone(TZ_BR).date()
 
-    # Última batida de hoje para determinar o próximo tipo
     ultimo = (
         sb.table("registros_ponto")
         .select("tipo")
@@ -118,7 +144,6 @@ async def kiosk_ponto(token: str, body: dict):
 
     tipo = proximos[0]
 
-    # Upload da foto
     foto_url = None
     if foto_b64:
         try:
@@ -127,7 +152,6 @@ async def kiosk_ponto(token: str, body: dict):
         except Exception as e:
             raise HTTPException(502, f"Falha no upload da foto: {e}")
 
-    # Hash de integridade
     ult_hash = (
         sb.table("registros_ponto")
         .select("hash_integridade")
@@ -140,14 +164,8 @@ async def kiosk_ponto(token: str, body: dict):
     registrado_em_str = agora_utc.isoformat()
 
     hash_atual = calcular_hash(
-        {
-            "colaborador_id": colaborador_id,
-            "tipo": tipo,
-            "lat_registro": None,
-            "lng_registro": None,
-            "foto_url": foto_url,
-            "registrado_em": registrado_em_str,
-        },
+        {"colaborador_id": colaborador_id, "tipo": tipo, "lat_registro": None,
+         "lng_registro": None, "foto_url": foto_url, "registrado_em": registrado_em_str},
         hash_anterior,
     )
 

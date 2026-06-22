@@ -81,6 +81,18 @@ export function IconSenha(props) {
   )
 }
 
+export function IconQR(props) {
+  return (
+    <IconBtn color="text-teal-400 hover:text-teal-300" title="QR Code" {...props}>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+        <rect x="3" y="14" width="7" height="7"/>
+        <path d="M14 14h.01M18 14h.01M14 18h.01M18 18h.01M14 21h4M21 14v4"/>
+      </svg>
+    </IconBtn>
+  )
+}
+
 export function IconBanco(props) {
   return (
     <IconBtn color="text-orange-400 hover:text-orange-300" title="Ajustar banco de horas" {...props}>

@@ -70,6 +70,7 @@ export default function Dispositivos() {
   const [erro, setErro] = useState('')
   const [modalQR, setModalQR] = useState(null)
   const [copiado, setCopiado] = useState('')
+  const [novaSenha, setNovaSenha] = useState(null)
 
   async function carregar() {
     setLoading(true)
@@ -86,8 +87,9 @@ export default function Dispositivos() {
     if (!nome.trim()) return setErro('Informe um nome para o dispositivo.')
     setErro(''); setSalvando(true)
     try {
-      await criarDispositivo({ nome: nome.trim() })
+      const novo = await criarDispositivo({ nome: nome.trim() })
       setNome('')
+      if (novo?.senha) setNovaSenha({ nome: novo.nome, senha: novo.senha, token: novo.token })
       carregar()
     } catch (e) { setErro(e.message) } finally { setSalvando(false) }
   }
@@ -191,6 +193,32 @@ export default function Dispositivos() {
           colaboradores={colaboradores}
           onFechar={() => setModalQR(null)}
         />
+      )}
+
+      {novaSenha && (
+        <Portal><div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-gray-900 rounded-2xl border border-gray-700 w-full max-w-sm p-8 text-center" onClick={e => e.stopPropagation()}>
+            <div className="w-14 h-14 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-4">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold text-gray-100 mb-1">Dispositivo criado!</h3>
+            <p className="text-sm text-gray-400 mb-6">{novaSenha.nome}</p>
+
+            <p className="text-xs text-gray-500 uppercase tracking-widest mb-2">Senha de acesso (PIN)</p>
+            <div className="bg-gray-800 rounded-xl px-6 py-4 mb-2">
+              <span className="text-4xl font-mono font-bold tracking-[0.3em] text-emerald-400">{novaSenha.senha}</span>
+            </div>
+            <p className="text-xs text-gray-600 mb-6">Anote este PIN — ele não será exibido novamente.</p>
+
+            <button
+              onClick={() => setNovaSenha(null)}
+              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 rounded-xl font-semibold text-sm">
+              Entendido
+            </button>
+          </div>
+        </div></Portal>
       )}
     </div>
   )
