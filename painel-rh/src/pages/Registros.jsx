@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import L from 'leaflet'
-import { getRegistros, getColaboradores, getFotoUrl, ajustarRegistro, excluirRegistro, getMe } from '../api'
+import { getRegistros, getColaboradores, getFotoUrl, ajustarRegistro, excluirRegistro, getMe, criarRegistroManual } from '../api'
 import Portal from '../components/Portal'
 import { IconVer, IconAjustar, IconExcluir } from '../components/IconBtn'
 
@@ -141,6 +141,82 @@ function ModalAjuste({ registro, onClose, onSalvo }) {
   )
 }
 
+function ModalNovaBatida({ colaboradores, onClose, onSalvo }) {
+  const [colaboradorId, setColaboradorId] = useState('')
+  const [tipo, setTipo] = useState('entrada')
+  const [horario, setHorario] = useState(() => {
+    const now = new Date()
+    return now.toISOString().slice(0, 16)
+  })
+  const [motivo, setMotivo] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [erro, setErro] = useState('')
+
+  async function salvar() {
+    if (!colaboradorId) return setErro('Selecione o colaborador.')
+    if (!motivo.trim()) return setErro('Informe o motivo do lançamento.')
+    setLoading(true)
+    try {
+      await criarRegistroManual({
+        colaborador_id: colaboradorId,
+        tipo,
+        registrado_em: horario + ':00',
+        motivo,
+      })
+      onSalvo()
+      onClose()
+    } catch (e) { setErro(e.message) } finally { setLoading(false) }
+  }
+
+  return (
+    <Portal><div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4">
+      <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="font-semibold text-gray-100">Nova Batida Manual</h3>
+            <p className="text-xs text-amber-400 mt-0.5">Este registro ficará marcado como lançamento manual.</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-100 text-xl ml-4">×</button>
+        </div>
+        <div>
+          <label className="text-sm text-gray-400">Colaborador</label>
+          <select value={colaboradorId} onChange={e => setColaboradorId(e.target.value)}
+            className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100">
+            <option value="">Selecione…</option>
+            {colaboradores.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-sm text-gray-400">Tipo</label>
+          <select value={tipo} onChange={e => setTipo(e.target.value)}
+            className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100">
+            {TIPOS.slice(1).map(t => <option key={t} value={t}>{t.replace(/_/g,' ')}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-sm text-gray-400">Horário</label>
+          <input type="datetime-local" value={horario} onChange={e => setHorario(e.target.value)}
+            className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100" />
+        </div>
+        <div>
+          <label className="text-sm text-gray-400">Motivo *</label>
+          <textarea value={motivo} onChange={e => setMotivo(e.target.value)} rows={3}
+            className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 resize-none"
+            placeholder="Descreva o motivo do lançamento manual" />
+        </div>
+        {erro && <p className="text-red-400 text-sm">{erro}</p>}
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 py-2 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700">Cancelar</button>
+          <button onClick={salvar} disabled={loading}
+            className="flex-1 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-semibold">
+            {loading ? 'Salvando…' : 'Lançar'}
+          </button>
+        </div>
+      </div>
+    </div></Portal>
+  )
+}
+
 export default function Registros() {
   const [registros, setRegistros] = useState([])
   const [colaboradores, setColaboradores] = useState([])
@@ -148,6 +224,7 @@ export default function Registros() {
   const [loading, setLoading] = useState(false)
   const [fotoReg, setFotoReg] = useState(null)
   const [ajusteReg, setAjusteReg] = useState(null)
+  const [novaBatida, setNovaBatida] = useState(false)
   const [me, setMe] = useState(null)
 
   useEffect(() => {
@@ -174,7 +251,13 @@ export default function Registros() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-100">Registros de Ponto</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-100">Registros de Ponto</h1>
+        <button onClick={() => setNovaBatida(true)}
+          className="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-lg text-sm font-semibold">
+          + Nova Batida Manual
+        </button>
+      </div>
 
       <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 flex flex-wrap gap-3 items-end">
         <div>
@@ -222,7 +305,14 @@ export default function Registros() {
             ) : registros.map(r => (
               <tr key={r.id} className="border-b border-gray-800/50 text-gray-300 hover:bg-gray-800/30">
                 <td className="px-4 py-3">{r.colaborador_nome}</td>
-                <td className="px-4 py-3 capitalize">{r.tipo?.replace(/_/g,' ')}</td>
+                <td className="px-4 py-3">
+                  <span className="capitalize">{r.tipo?.replace(/_/g,' ')}</span>
+                  {r.origem === 'manual' && (
+                    <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                      manual
+                    </span>
+                  )}
+                </td>
                 <td className="px-4 py-3">{new Date(r.registrado_em).toLocaleString('pt-BR')}</td>
                 <td className="px-4 py-3 text-gray-500">{r.local_nome || '—'}</td>
                 <td className="px-4 py-3">
@@ -248,6 +338,7 @@ export default function Registros() {
 
       {fotoReg && <ModalFoto registro={fotoReg} onClose={() => setFotoReg(null)} />}
       {ajusteReg && <ModalAjuste registro={ajusteReg} onClose={() => setAjusteReg(null)} onSalvo={buscar} />}
+      {novaBatida && <ModalNovaBatida colaboradores={colaboradores} onClose={() => setNovaBatida(false)} onSalvo={buscar} />}
     </div>
   )
 }

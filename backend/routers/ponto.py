@@ -163,6 +163,7 @@ async def _registrar_ponto_impl(request, tipo, lat, lng, foto, colaborador):
         "status": status_registro,
         "motivo_rejeicao": motivo_rejeicao,
         "registrado_em": registrado_em_str,
+        "origem": "app",
     }
     inserido = supabase.table("registros_ponto").insert(novo).execute().data[0]
 

@@ -111,6 +111,7 @@ export const getRegistros = (params = {}) => {
   const qs = new URLSearchParams(params).toString()
   return api(`/rh/registros${qs ? '?' + qs : ''}`)
 }
+export const criarRegistroManual = (body) => api('/rh/registros', { method: 'POST', body: JSON.stringify(body) })
 export const getFotoUrl = (registroId) => api(`/rh/registros/${registroId}/foto`)
 export const ajustarRegistro = (id, body) => api(`/rh/registros/${id}/ajuste`, { method: 'POST', body: JSON.stringify(body) })
 export const excluirRegistro = (id) => api(`/rh/registros/${id}`, { method: 'DELETE' })

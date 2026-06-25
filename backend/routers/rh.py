@@ -284,6 +284,53 @@ async def get_foto_url(registro_id: str, rh=Depends(get_usuario_rh_atual)):
     return {"url": url}
 
 
+@router.post("/registros")
+async def criar_registro_manual(body: dict, rh=Depends(get_usuario_rh_atual)):
+    ids = _empresa_ids(rh)
+    colaborador_id = body.get("colaborador_id", "").strip()
+    tipo = body.get("tipo", "").strip()
+    registrado_em = body.get("registrado_em", "").strip()
+    motivo = body.get("motivo", "").strip()
+
+    if not colaborador_id or not tipo or not registrado_em:
+        raise HTTPException(400, "colaborador_id, tipo e registrado_em são obrigatórios")
+
+    TIPOS_VALIDOS = {"entrada", "saida_almoco", "retorno_almoco", "saida"}
+    if tipo not in TIPOS_VALIDOS:
+        raise HTTPException(400, f"Tipo inválido. Use: {sorted(TIPOS_VALIDOS)}")
+
+    colab = sb.table("colaboradores").select("id, empresa_id").eq("id", colaborador_id).single().execute()
+    if not colab.data or colab.data["empresa_id"] not in ids:
+        raise HTTPException(404, "Colaborador não encontrado")
+
+    empresa_id = colab.data["empresa_id"]
+
+    try:
+        res = sb.table("registros_ponto").insert({
+            "colaborador_id": colaborador_id,
+            "empresa_id": empresa_id,
+            "tipo": tipo,
+            "registrado_em": registrado_em,
+            "origem": "manual",
+            "status": "valido",
+        }).execute()
+    except Exception as e:
+        raise HTTPException(400, f"Erro ao criar registro: {e}")
+
+    registro_id = res.data[0]["id"]
+
+    sb.table("ajustes_ponto").insert({
+        "registro_id": registro_id,
+        "usuario_rh_id": rh["id"],
+        "campo_alterado": "criação manual",
+        "valor_anterior": None,
+        "valor_novo": tipo,
+        "justificativa": motivo or "Registro inserido manualmente pelo RH",
+    }).execute()
+
+    return res.data[0]
+
+
 @router.delete("/registros/{registro_id}")
 async def excluir_registro(registro_id: str, rh=Depends(get_usuario_rh_atual)):
     if rh.get("papel") != "admin":

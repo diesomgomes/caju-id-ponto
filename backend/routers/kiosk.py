@@ -190,6 +190,7 @@ async def kiosk_ponto(token: str, body: dict):
             "hash_anterior": hash_anterior,
             "status": "valido",
             "motivo_rejeicao": None,
+            "origem": "kiosk",
             "registrado_em": registrado_em_str,
         }).execute()
     except Exception as e:
