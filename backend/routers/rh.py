@@ -352,6 +352,7 @@ async def excluir_registro(registro_id: str, rh=Depends(get_usuario_rh_atual)):
     if not res.data or res.data["empresa_id"] not in ids:
         raise HTTPException(404, "Registro não encontrado")
     try:
+        sb.table("ajustes_ponto").delete().eq("registro_id", registro_id).execute()
         sb.table("registros_ponto").delete().eq("id", registro_id).execute()
     except Exception as e:
         raise HTTPException(400, f"Erro ao excluir registro: {e}")
