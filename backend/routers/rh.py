@@ -126,7 +126,7 @@ async def listar_colaboradores(
     if not ids:
         return []
     filtro = [empresa_id] if empresa_id and empresa_id in ids else ids
-    res = sb.table("colaboradores").select("*").in_("empresa_id", filtro).order("nome").execute()
+    res = sb.table("colaboradores").select("*").in_("empresa_id", filtro).eq("ativo", True).order("nome").execute()
     return res.data or []
 
 
