@@ -27,17 +27,6 @@ function ModalColaborador({ titulo, criando, dados, onChange, onSalvar, onFechar
           </select>
         </div>
 
-        <div>
-          <label className="text-xs text-gray-400 block mb-1">Jornada de trabalho</label>
-          <select value={dados.modelo_jornada_id || ''} onChange={e => onChange('modelo_jornada_id', e.target.value)}
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm">
-            <option value="">Sem jornada definida</option>
-            {(modelos || []).filter(m => !dados.empresa_id || m.empresa_id === dados.empresa_id).map(m => (
-              <option key={m.id} value={m.id}>{m.nome}</option>
-            ))}
-          </select>
-        </div>
-
         {[
           { key: 'nome', label: 'Nome completo', type: 'text' },
           { key: 'cpf', label: 'CPF', type: 'text' },
@@ -516,11 +505,12 @@ export default function Colaboradores() {
   }
 
   function fmtJornada(c) {
-    if (!c.hora_entrada_esperada) return '—'
-    const entrada = c.hora_entrada_esperada.slice(0, 5)
-    const saida = c.hora_saida_esperada?.slice(0, 5) || '?'
-    const dias = c.dias_trabalho || 'seg-sex'
-    return `${entrada}–${saida} · ${dias.split(',').length}d/sem`
+    const modelo = modelos.find(m => m.id === c.modelo_jornada_id)
+    if (!modelo) return '—'
+    const entrada = modelo.hora_entrada?.slice(0, 5) || ''
+    const saida = modelo.hora_saida?.slice(0, 5) || ''
+    const dias = (modelo.dias_trabalho || '').split(',').length
+    return `${entrada}–${saida} · ${dias}d/sem`
   }
 
   const nomeEmpresa = (id) => empresas.find(e => e.id === id)?.nome || '—'
