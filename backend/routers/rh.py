@@ -322,6 +322,9 @@ async def criar_registro_manual(body: dict, rh=Depends(get_usuario_rh_atual)):
             "tipo": tipo,
             "registrado_em": registrado_em,
             "status": "valido",
+            "foto_url": "",
+            "lat_registro": None,
+            "lng_registro": None,
         }).execute()
     except Exception as e:
         raise HTTPException(400, f"Erro ao criar registro: {e}")
