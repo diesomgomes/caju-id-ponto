@@ -306,18 +306,16 @@ async def criar_registro_manual(body: dict, rh=Depends(get_usuario_rh_atual)):
     empresa_id = colab.data["empresa_id"]
 
     try:
-        res = sb.table("registros_ponto").insert({
-            "colaborador_id": colaborador_id,
-            "empresa_id": empresa_id,
-            "tipo": tipo,
-            "registrado_em": registrado_em,
-            "origem": "manual",
-            "status": "valido",
+        res = sb.rpc("rh_inserir_registro_manual", {
+            "p_colaborador_id": colaborador_id,
+            "p_empresa_id": empresa_id,
+            "p_tipo": tipo,
+            "p_registrado_em": registrado_em,
         }).execute()
     except Exception as e:
         raise HTTPException(400, f"Erro ao criar registro: {e}")
 
-    registro_id = res.data[0]["id"]
+    registro_id = res.data
 
     sb.table("ajustes_ponto").insert({
         "registro_id": registro_id,
@@ -328,7 +326,7 @@ async def criar_registro_manual(body: dict, rh=Depends(get_usuario_rh_atual)):
         "justificativa": motivo or "Registro inserido manualmente pelo RH",
     }).execute()
 
-    return res.data[0]
+    return {"ok": True, "id": registro_id}
 
 
 @router.delete("/registros/{registro_id}")
