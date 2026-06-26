@@ -262,10 +262,20 @@ async def listar_registros(
         cn = sb.table("colaboradores").select("id, nome").in_("id", ids_colab).execute()
         nomes = {c["id"]: c["nome"] for c in (cn.data or [])}
 
+    # Identifica registros manuais via ajustes_ponto
+    ids_regs = [r["id"] for r in regs]
+    manuais = set()
+    if ids_regs:
+        aj = sb.table("ajustes_ponto").select("registro_id") \
+            .in_("registro_id", ids_regs) \
+            .eq("campo_alterado", "criação manual").execute()
+        manuais = {a["registro_id"] for a in (aj.data or [])}
+
     return [{
         **r,
         "colaborador_nome": nomes.get(r["colaborador_id"], "—"),
         "local_nome": (r.get("locais_permitidos") or {}).get("nome") or r.get("local_nome"),
+        "origem": "manual" if r["id"] in manuais else (r.get("origem") or "app"),
     } for r in regs]
 
 
@@ -306,16 +316,17 @@ async def criar_registro_manual(body: dict, rh=Depends(get_usuario_rh_atual)):
     empresa_id = colab.data["empresa_id"]
 
     try:
-        res = sb.rpc("rh_inserir_registro_manual", {
-            "p_colaborador_id": colaborador_id,
-            "p_empresa_id": empresa_id,
-            "p_tipo": tipo,
-            "p_registrado_em": registrado_em,
+        res = sb.table("registros_ponto").insert({
+            "colaborador_id": colaborador_id,
+            "empresa_id": empresa_id,
+            "tipo": tipo,
+            "registrado_em": registrado_em,
+            "status": "valido",
         }).execute()
     except Exception as e:
         raise HTTPException(400, f"Erro ao criar registro: {e}")
 
-    registro_id = res.data
+    registro_id = res.data[0]["id"]
 
     sb.table("ajustes_ponto").insert({
         "registro_id": registro_id,
