@@ -78,6 +78,45 @@ export default function Kiosk() {
       .catch(e => setErroGlobal(e.message))
   }, [token])
 
+  // ── Manifest PWA dinâmico (para instalar o kiosk como app no tablet) ─────
+  useEffect(() => {
+    if (!branding) return
+    const manifest = {
+      name: branding.empresa_nome || 'CAJU ID Kiosk',
+      short_name: branding.empresa_nome ? branding.empresa_nome.split(' ')[0] : 'CAJU ID',
+      description: 'Ponto eletrônico — ' + (branding.dispositivo_nome || 'Kiosk'),
+      start_url: `/kiosk/${token}`,
+      scope: '/',
+      display: 'fullscreen',
+      orientation: 'portrait',
+      background_color: branding.cor_fundo || '#059669',
+      theme_color: branding.cor_fundo || '#059669',
+      icons: [
+        { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+        { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+      ],
+    }
+    const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' })
+    const url = URL.createObjectURL(blob)
+    document.querySelectorAll('link[rel="manifest"]').forEach(l => l.remove())
+    const link = document.createElement('link')
+    link.rel = 'manifest'; link.href = url
+    document.head.appendChild(link)
+    // Meta tags para iOS (Safari não usa manifest para instalar)
+    const iosMetas = [
+      ['apple-mobile-web-app-capable', 'yes'],
+      ['apple-mobile-web-app-status-bar-style', 'black-translucent'],
+      ['apple-mobile-web-app-title', branding.empresa_nome || 'CAJU ID'],
+    ]
+    iosMetas.forEach(([name, content]) => {
+      if (document.querySelector(`meta[name="${name}"]`)) return
+      const m = document.createElement('meta')
+      m.name = name; m.content = content
+      document.head.appendChild(m)
+    })
+    return () => URL.revokeObjectURL(url)
+  }, [branding, token])
+
   // ── Autenticar com PIN ─────────────────────────────────────────────────────
   async function autenticar(senha) {
     setAutenticando(true); setPinErro('')
