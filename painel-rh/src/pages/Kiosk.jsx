@@ -67,13 +67,16 @@ export default function Kiosk() {
     return () => document.removeEventListener('click', onGesto)
   }, [])
 
-  // ── Carregar branding ──────────────────────────────────────────────────────
+  // ── Carregar branding + auto-login com PIN salvo ───────────────────────────
   useEffect(() => {
+    const pinSalvo = localStorage.getItem(`kiosk_pin_${token}`) || ''
     fetch(`${API_URL}/kiosk/${token}/branding`)
       .then(r => { if (!r.ok) throw new Error('Dispositivo inválido'); return r.json() })
       .then(b => {
         setBranding(b)
+        // Se não tem senha ou temos o PIN salvo, autentica direto sem pedir
         if (!b.tem_senha) autenticar('')
+        else if (pinSalvo) autenticar(pinSalvo)
       })
       .catch(e => setErroGlobal(e.message))
   }, [token])
@@ -134,6 +137,8 @@ export default function Kiosk() {
       setInfo(data)
       setPinOk(true)
       pinRef.current = senha
+      // Persiste o PIN para auto-login após reload
+      localStorage.setItem(`kiosk_pin_${token}`, senha)
     } catch (e) {
       setPinErro(e.message)
     } finally {
@@ -141,11 +146,24 @@ export default function Kiosk() {
     }
   }
 
-  // ── Auto-refresh a cada 30s (atualiza lista de colaboradores) ─────────────
+  // ── Reload periódico configurável (intervalo_refresh do dispositivo) ────────
+  useEffect(() => {
+    if (!pinOk || !branding) return
+    const mins = branding.intervalo_refresh
+    if (!mins || mins <= 0) return
+    const ms = mins * 60 * 1000
+    const timer = setTimeout(() => {
+      // Só recarrega se não está em meio a um registro
+      if (faseRef.current !== 'scan') return
+      window.location.reload()
+    }, ms)
+    return () => clearTimeout(timer)
+  }, [pinOk, branding])
+
+  // ── Atualização silenciosa de dados a cada 30s (sem reload) ─────────────────
   useEffect(() => {
     if (!pinOk) return
     const intervalo = setInterval(async () => {
-      // Só atualiza se não está em meio a um registro
       if (faseRef.current !== 'scan') return
       try {
         const res = await fetch(`${API_URL}/kiosk/${token}/auth`, {

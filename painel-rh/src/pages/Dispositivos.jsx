@@ -66,6 +66,7 @@ export default function Dispositivos() {
   const [copiado, setCopiado] = useState('')
   const [novaSenha, setNovaSenha] = useState(null)
   const [senhaCopiada, setSenhaCopiada] = useState('')
+  const [intervaloRefresh, setIntervaloRefresh] = useState('2')
 
   async function carregar() {
     setLoading(true)
@@ -98,8 +99,11 @@ export default function Dispositivos() {
       const payload = { nome: nome.trim() }
       if (endereco.trim()) payload.endereco = endereco.trim()
       if (lat && lng) { payload.lat = parseFloat(lat); payload.lng = parseFloat(lng) }
+      const mins = parseInt(intervaloRefresh)
+      if (!isNaN(mins) && mins > 0) payload.intervalo_refresh = mins
+      else payload.intervalo_refresh = null
       const novo = await criarDispositivo(payload)
-      setNome(''); setEndereco(''); setLat(''); setLng('')
+      setNome(''); setEndereco(''); setLat(''); setLng(''); setIntervaloRefresh('2')
       if (novo?.senha) setNovaSenha({ nome: novo.nome, senha: novo.senha, token: novo.token })
       carregar()
     } catch (e) { setErro(e.message) } finally { setSalvando(false) }
@@ -177,6 +181,25 @@ export default function Dispositivos() {
           <p className="text-xs text-gray-600 mt-1">Usado para registrar a localização nos pontos batidos neste dispositivo.</p>
         </div>
 
+        <div>
+          <label className="text-xs text-gray-500 block mb-1">Recarregar tela automaticamente</label>
+          <div className="flex items-center gap-2">
+            <select
+              value={intervaloRefresh}
+              onChange={e => setIntervaloRefresh(e.target.value)}
+              className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm">
+              <option value="">Sem refresh automático</option>
+              <option value="2">A cada 2 minutos</option>
+              <option value="5">A cada 5 minutos</option>
+              <option value="10">A cada 10 minutos</option>
+              <option value="15">A cada 15 minutos</option>
+              <option value="30">A cada 30 minutos</option>
+              <option value="60">A cada 1 hora</option>
+            </select>
+          </div>
+          <p className="text-xs text-gray-600 mt-1">A tela do dispositivo recarregará sozinha neste intervalo (fora de registros ativos).</p>
+        </div>
+
         <div className="flex justify-end">
           <button onClick={criar} disabled={salvando}
             className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-5 py-2 rounded-lg text-sm font-semibold">
@@ -209,9 +232,16 @@ export default function Dispositivos() {
                   {d.lat && d.lng && (
                     <p className="text-xs text-gray-600 font-mono mt-0.5">{d.lat}, {d.lng}</p>
                   )}
-                  <p className="text-xs text-gray-600 mt-1">
-                    Criado em {new Date(d.criado_em).toLocaleDateString('pt-BR')}
-                  </p>
+                  <div className="flex items-center gap-3 mt-1">
+                    <p className="text-xs text-gray-600">
+                      Criado em {new Date(d.criado_em).toLocaleDateString('pt-BR')}
+                    </p>
+                    {d.intervalo_refresh && (
+                      <span className="text-xs text-blue-400 bg-blue-900/20 border border-blue-800 rounded px-1.5 py-0.5">
+                        🔄 Refresh a cada {d.intervalo_refresh} min
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex gap-2 flex-shrink-0">
                   <button onClick={() => copiarUrl(d.token)}

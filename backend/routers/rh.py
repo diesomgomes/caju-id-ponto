@@ -1058,6 +1058,10 @@ async def criar_dispositivo(body: dict, rh=Depends(get_usuario_rh_atual)):
         payload["lat"] = float(body["lat"])
     if body.get("lng") is not None:
         payload["lng"] = float(body["lng"])
+    if body.get("intervalo_refresh") is not None:
+        mins = int(body["intervalo_refresh"])
+        if mins > 0:
+            payload["intervalo_refresh"] = mins
     res = sb.table("dispositivos_ponto").insert(payload).execute()
     return res.data[0]
 

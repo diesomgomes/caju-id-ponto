@@ -51,6 +51,7 @@ async def kiosk_branding(token: str):
         "empresa_logo": empresa.get("logo_url", ""),
         "cor_fundo": (empresa.get("login_config") or {}).get("cor_fundo", "#059669"),
         "tem_senha": bool(device.get("senha")),
+        "intervalo_refresh": device.get("intervalo_refresh"),  # minutos; null = sem refresh
     }
 
 
