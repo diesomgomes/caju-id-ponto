@@ -993,6 +993,9 @@ async def listar_ajustes_banco(colab_id: str, rh=Depends(get_usuario_rh_atual)):
 
 @router.post("/colaboradores/{colab_id}/ajuste-banco")
 async def criar_ajuste_banco(colab_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
+    colab = sb.table("colaboradores").select("banco_horas_bloqueado").eq("id", colab_id).limit(1).execute()
+    if colab.data and colab.data[0].get("banco_horas_bloqueado"):
+        raise HTTPException(403, "Banco de horas bloqueado para este colaborador.")
     minutos_val = int(body.get("minutos", 0))
     descricao = str(body.get("descricao", "")).strip()
     if not descricao:
@@ -1010,6 +1013,11 @@ async def criar_ajuste_banco(colab_id: str, body: dict, rh=Depends(get_usuario_r
 
 @router.delete("/ajuste-banco/{ajuste_id}")
 async def excluir_ajuste_banco(ajuste_id: str, rh=Depends(get_usuario_rh_atual)):
+    ajuste = sb.table("ajustes_banco_horas").select("colaborador_id").eq("id", ajuste_id).limit(1).execute()
+    if ajuste.data:
+        colab = sb.table("colaboradores").select("banco_horas_bloqueado").eq("id", ajuste.data[0]["colaborador_id"]).limit(1).execute()
+        if colab.data and colab.data[0].get("banco_horas_bloqueado"):
+            raise HTTPException(403, "Banco de horas bloqueado para este colaborador.")
     sb.table("ajustes_banco_horas").delete().eq("id", ajuste_id).execute()
     return {"ok": True}
 

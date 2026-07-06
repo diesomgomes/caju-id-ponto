@@ -3,6 +3,7 @@ import {
   getColaboradores, criarColaborador, atualizarColaborador, excluirColaborador,
   getEmpresas, getModelosJornada, getLocais, getLocaisColaborador, setLocaisColaborador,
   alterarSenhaColaborador, getAjustesBanco, criarAjusteBanco, excluirAjusteBanco,
+  getColaborador,
 } from '../api'
 import Portal from '../components/Portal'
 import { IconEditar, IconExcluir, IconJornada, IconLocais, IconSenha, IconBanco, IconQR } from '../components/IconBtn'
@@ -351,20 +352,34 @@ function fmtMinutos(min) {
   return `${sinal}${h}h${m > 0 ? ` ${m}min` : ''}`
 }
 
-function ModalAjusteBanco({ colaborador, onFechar }) {
+function ModalAjusteBanco({ colaborador: colaboradorInicial, onFechar }) {
+  const [colaborador, setColaborador] = useState(colaboradorInicial)
   const [ajustes, setAjustes] = useState([])
   const [sinal, setSinal] = useState('+')
   const [horas, setHoras] = useState('')
   const [minutos, setMinutos] = useState('0')
   const [descricao, setDescricao] = useState('')
   const [salvando, setSalvando] = useState(false)
+  const [salvandoBloqueio, setSalvandoBloqueio] = useState(false)
   const [erro, setErro] = useState('')
+
+  const bloqueado = !!colaborador.banco_horas_bloqueado
 
   useEffect(() => {
     getAjustesBanco(colaborador.id).then(setAjustes).catch(console.error)
   }, [colaborador.id])
 
+  async function toggleBloqueio() {
+    setSalvandoBloqueio(true)
+    try {
+      const novo = !bloqueado
+      await atualizarColaborador(colaborador.id, { banco_horas_bloqueado: novo })
+      setColaborador(c => ({ ...c, banco_horas_bloqueado: novo }))
+    } catch (e) { alert(e.message) } finally { setSalvandoBloqueio(false) }
+  }
+
   async function salvar() {
+    if (bloqueado) return
     const h = parseInt(horas) || 0
     const m = parseInt(minutos) || 0
     const total = (h * 60 + m) * (sinal === '-' ? -1 : 1)
@@ -380,6 +395,7 @@ function ModalAjusteBanco({ colaborador, onFechar }) {
   }
 
   async function remover(id) {
+    if (bloqueado) return
     if (!confirm('Remover este ajuste?')) return
     try {
       await excluirAjusteBanco(id)
@@ -400,6 +416,25 @@ function ModalAjusteBanco({ colaborador, onFechar }) {
           <button onClick={onFechar} className="text-gray-400 hover:text-gray-100 text-xl">×</button>
         </div>
 
+        {/* Toggle bloqueio */}
+        <div className={`flex items-center justify-between rounded-lg px-4 py-3 border ${bloqueado ? 'bg-red-900/20 border-red-800/50' : 'bg-gray-800/50 border-gray-700/50'}`}>
+          <div>
+            <p className={`text-sm font-semibold ${bloqueado ? 'text-red-400' : 'text-gray-300'}`}>
+              {bloqueado ? '🔒 Banco de horas bloqueado' : '🔓 Banco de horas ativo'}
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {bloqueado ? 'Nenhum ajuste pode ser adicionado ou removido.' : 'Ajustes manuais permitidos.'}
+            </p>
+          </div>
+          <button
+            onClick={toggleBloqueio}
+            disabled={salvandoBloqueio}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50 ${bloqueado ? 'bg-red-600' : 'bg-gray-600'}`}
+          >
+            <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${bloqueado ? 'translate-x-6' : 'translate-x-1'}`} />
+          </button>
+        </div>
+
         {/* Total */}
         <div className={`rounded-lg px-4 py-3 text-center ${totalGeral >= 0 ? 'bg-emerald-900/30 border border-emerald-800/40' : 'bg-red-900/30 border border-red-800/40'}`}>
           <p className="text-xs text-gray-400 mb-0.5">Saldo de ajustes manuais</p>
@@ -407,7 +442,7 @@ function ModalAjusteBanco({ colaborador, onFechar }) {
         </div>
 
         {/* Formulário */}
-        <div className="space-y-3">
+        <div className={`space-y-3 ${bloqueado ? 'opacity-40 pointer-events-none select-none' : ''}`}>
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Novo ajuste</p>
           <div className="flex gap-2">
             <div className="flex rounded-lg overflow-hidden border border-gray-700 flex-shrink-0">
@@ -443,7 +478,9 @@ function ModalAjusteBanco({ colaborador, onFechar }) {
                   <p className="text-[11px] text-gray-500 mt-0.5">{new Date(a.criado_em).toLocaleDateString('pt-BR')}</p>
                 </div>
                 <span className={`text-sm font-bold flex-shrink-0 ${a.minutos >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtMinutos(a.minutos)}</span>
-                <button onClick={() => remover(a.id)} className="text-gray-600 hover:text-red-400 text-lg leading-none flex-shrink-0">×</button>
+                {!bloqueado && (
+                  <button onClick={() => remover(a.id)} className="text-gray-600 hover:text-red-400 text-lg leading-none flex-shrink-0">×</button>
+                )}
               </div>
             ))}
           </div>
