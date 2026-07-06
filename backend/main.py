@@ -6,16 +6,30 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 from routers import ponto, rh, kiosk
 from services.cleanup import limpar_fotos_antigas
+from db.supabase_client import supabase as sb
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 scheduler = BackgroundScheduler()
 
 
+def _ping_supabase():
+    """Mantém o projeto Supabase ativo — evita pausa por inatividade."""
+    try:
+        sb.table("empresas").select("id").limit(1).execute()
+        logger.info("Supabase ping OK")
+    except Exception as e:
+        logger.warning(f"Supabase ping falhou: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    scheduler.add_job(limpar_fotos_antigas, "cron", hour=3, minute=0, id="cleanup_fotos")
+    scheduler.add_job(limpar_fotos_antigas, "cron", hour=3, minute=0, id="limpar_fotos_antigas")
+    # Ping a cada 2 dias para evitar pausa do plano gratuito do Supabase
+    scheduler.add_job(_ping_supabase, "interval", days=2, id="ping_supabase")
     scheduler.start()
+    _ping_supabase()  # executa imediatamente ao iniciar
     yield
     scheduler.shutdown()
 
