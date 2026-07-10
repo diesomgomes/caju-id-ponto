@@ -366,6 +366,7 @@ function ModalAjusteBanco({ colaborador: colaboradorInicial, onFechar }) {
   const [horas, setHoras] = useState('')
   const [minutos, setMinutos] = useState('0')
   const [descricao, setDescricao] = useState('')
+  const [dataRef, setDataRef] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [salvandoBloqueio, setSalvandoBloqueio] = useState(false)
   const [erro, setErro] = useState('')
@@ -394,8 +395,8 @@ function ModalAjusteBanco({ colaborador: colaboradorInicial, onFechar }) {
     if (!descricao.trim()) return setErro('Informe uma descrição.')
     setErro(''); setSalvando(true)
     try {
-      await criarAjusteBanco(colaborador.id, { minutos: total, descricao: descricao.trim() })
-      setHoras(''); setMinutos('0'); setDescricao('')
+      await criarAjusteBanco(colaborador.id, { minutos: total, descricao: descricao.trim(), data_referencia: dataRef || null })
+      setHoras(''); setMinutos('0'); setDescricao(''); setDataRef('')
       const lista = await getAjustesBanco(colaborador.id)
       setAjustes(lista)
     } catch (e) { setErro(e.message) } finally { setSalvando(false) }
@@ -465,8 +466,17 @@ function ModalAjusteBanco({ colaborador: colaboradorInicial, onFechar }) {
               className="w-16 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm text-center" />
             <span className="self-center text-gray-400 text-sm">min</span>
           </div>
-          <input type="text" placeholder="Motivo / descrição *" value={descricao} onChange={e => setDescricao(e.target.value)}
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <input type="text" placeholder="Motivo / descrição *" value={descricao} onChange={e => setDescricao(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+            </div>
+            <div className="flex-shrink-0">
+              <input type="date" value={dataRef} onChange={e => setDataRef(e.target.value)}
+                title="Data de referência (opcional)"
+                className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+            </div>
+          </div>
           {erro && <p className="text-red-400 text-xs">{erro}</p>}
           <button onClick={salvar} disabled={salvando}
             className="w-full py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white text-sm font-semibold">
@@ -482,7 +492,12 @@ function ModalAjusteBanco({ colaborador: colaboradorInicial, onFechar }) {
               <div key={a.id} className="flex items-center justify-between bg-gray-800/50 rounded-lg px-3 py-2 gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-gray-300 truncate">{a.descricao}</p>
-                  <p className="text-[11px] text-gray-500 mt-0.5">{new Date(a.criado_em).toLocaleDateString('pt-BR')}</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    {a.data_referencia
+                      ? <><span className="text-blue-400">📅 {new Date(a.data_referencia + 'T12:00:00').toLocaleDateString('pt-BR')}</span> · registrado em {new Date(a.criado_em).toLocaleDateString('pt-BR')}</>
+                      : <>registrado em {new Date(a.criado_em).toLocaleDateString('pt-BR')}</>
+                    }
+                  </p>
                 </div>
                 <span className={`text-sm font-bold flex-shrink-0 ${a.minutos >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtMinutos(a.minutos)}</span>
                 {!bloqueado && (
