@@ -838,12 +838,18 @@ async def get_calendario(
         raise HTTPException(404, "Colaborador não encontrado")
     colab = colab_res.data
 
+    # Mapeamento inverso: número do weekday → chave de dia
+    DIA_KEY = {v: k for k, v in DIAS_SEMANA_MAP.items()}
+
     # Modelo de jornada → dias de trabalho e horários esperados
     dias_trabalho = {0, 1, 2, 3, 4}  # seg-sex por padrão
     hora_entrada_esp = None
     hora_saida_esp   = None
+    hora_entrada_almoco_esp = None
+    hora_saida_almoco_esp   = None
     tolerancia_entrada = 5
     tolerancia_saida   = 5
+    horarios_por_dia: dict = {}
 
     if colab.get("modelo_jornada_id"):
         mj = sb.table("modelos_jornada").select("*").eq("id", colab["modelo_jornada_id"]).single().execute().data
@@ -852,8 +858,11 @@ async def get_calendario(
             dias_trabalho = {DIAS_SEMANA_MAP[d.strip()] for d in dt_str.split(",") if d.strip() in DIAS_SEMANA_MAP}
             hora_entrada_esp = mj.get("hora_entrada")
             hora_saida_esp   = mj.get("hora_saida")
+            hora_entrada_almoco_esp = mj.get("hora_inicio_almoco")
+            hora_saida_almoco_esp   = mj.get("hora_fim_almoco")
             tolerancia_entrada = mj.get("tolerancia_entrada_minutos", 5)
             tolerancia_saida   = mj.get("tolerancia_saida_minutos", 5)
+            horarios_por_dia   = mj.get("horarios_por_dia") or {}
 
     ano, mes_num = int(mes.split("-")[0]), int(mes.split("-")[1])
     _, total_dias = cal_module.monthrange(ano, mes_num)
@@ -929,6 +938,12 @@ async def get_calendario(
             dias.append({"data": d_iso, "status": "falta"})
             continue
 
+        # Horário específico do dia (sobrescreve o padrão se configurado)
+        dia_key = DIA_KEY.get(d.weekday(), "")
+        h_dia = horarios_por_dia.get(dia_key, {})
+        entrada_esp = h_dia.get("hora_entrada") or hora_entrada_esp
+        saida_esp   = h_dia.get("hora_saida")   or hora_saida_esp
+
         # Avalia divergências
         divergencias = []
 
@@ -948,19 +963,19 @@ async def get_calendario(
                 divergencias.append("sem_foto")
                 break
 
-        if hora_entrada_esp and regs:
+        if entrada_esp and regs:
             entrada_reg = next((r for r in regs if r["tipo"] == "entrada"), None)
             if entrada_reg:
                 h_reg = minutos(entrada_reg["registrado_em"][11:16])
-                h_esp = minutos(hora_entrada_esp[:5])
+                h_esp = minutos(entrada_esp[:5])
                 if h_reg and h_esp and (h_reg - h_esp) > tolerancia_entrada:
                     divergencias.append("atraso_entrada")
 
-        if hora_saida_esp and regs:
+        if saida_esp and regs:
             saida_reg = next((r for r in regs if r["tipo"] == "saida"), None)
             if saida_reg:
                 h_reg = minutos(saida_reg["registrado_em"][11:16])
-                h_esp = minutos(hora_saida_esp[:5])
+                h_esp = minutos(saida_esp[:5])
                 if h_reg and h_esp and (h_esp - h_reg) > tolerancia_saida:
                     divergencias.append("saida_antecipada")
 

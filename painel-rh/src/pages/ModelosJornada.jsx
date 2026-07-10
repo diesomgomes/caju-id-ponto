@@ -4,19 +4,21 @@ import Portal from '../components/Portal'
 import { IconEditar, IconExcluir } from '../components/IconBtn'
 
 const DIAS_SEMANA = [
-  { key: 'seg', label: 'Seg' }, { key: 'ter', label: 'Ter' }, { key: 'qua', label: 'Qua' },
-  { key: 'qui', label: 'Qui' }, { key: 'sex', label: 'Sex' }, { key: 'sab', label: 'Sáb' },
-  { key: 'dom', label: 'Dom' },
+  { key: 'seg', label: 'Segunda' }, { key: 'ter', label: 'Terça' }, { key: 'qua', label: 'Quarta' },
+  { key: 'qui', label: 'Quinta' }, { key: 'sex', label: 'Sexta' }, { key: 'sab', label: 'Sábado' },
+  { key: 'dom', label: 'Domingo' },
 ]
+const DIAS_LABEL = { seg: 'Seg', ter: 'Ter', qua: 'Qua', qui: 'Qui', sex: 'Sex', sab: 'Sáb', dom: 'Dom' }
 
 const VAZIO = {
   nome: '', empresa_id: '',
-  hora_entrada: '08:00', hora_saida: '17:00',
+  hora_entrada: '07:30', hora_saida: '17:30',
   hora_inicio_almoco: '12:00', hora_fim_almoco: '13:00',
   dias_trabalho: 'seg,ter,qua,qui,sex',
   almoco_ativo: true,
   tolerancia_entrada_minutos: 5,
   tolerancia_saida_minutos: 5,
+  horarios_por_dia: {},
 }
 
 function toMins(hhmm) {
@@ -42,18 +44,38 @@ function calcCarga(entrada, saida, inicioAlm, fimAlm, almAtivo) {
 }
 
 function fmtDias(dias) {
-  const ordemLabel = { seg: 'Seg', ter: 'Ter', qua: 'Qua', qui: 'Qui', sex: 'Sex', sab: 'Sáb', dom: 'Dom' }
-  return (dias || '').split(',').map(d => ordemLabel[d] || d).join(', ')
+  return (dias || '').split(',').map(d => DIAS_LABEL[d] || d).join(', ')
+}
+
+function InputHora({ value, onChange, placeholder }) {
+  return (
+    <input type="time" value={value || ''} onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-gray-100 text-xs text-center" />
+  )
 }
 
 function ModalModelo({ titulo, dados, onChange, onSalvar, onFechar, loading, erro, empresas }) {
-  const dias = (dados.dias_trabalho || '').split(',').filter(Boolean)
+  const diasAtivos = (dados.dias_trabalho || '').split(',').filter(Boolean)
+  const horariosPorDia = dados.horarios_por_dia || {}
 
   function toggleDia(dia) {
     const atual = dados.dias_trabalho.split(',').filter(Boolean)
     const novo = atual.includes(dia) ? atual.filter(d => d !== dia) : [...atual, dia]
     const ordem = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom']
     onChange('dias_trabalho', novo.sort((a, b) => ordem.indexOf(a) - ordem.indexOf(b)).join(','))
+  }
+
+  function setHorarioDia(diaKey, campo, valor) {
+    const atual = { ...(dados.horarios_por_dia || {}) }
+    if (!atual[diaKey]) atual[diaKey] = {}
+    if (valor) {
+      atual[diaKey] = { ...atual[diaKey], [campo]: valor }
+    } else {
+      delete atual[diaKey][campo]
+      if (Object.keys(atual[diaKey]).length === 0) delete atual[diaKey]
+    }
+    onChange('horarios_por_dia', atual)
   }
 
   function setHora(key, val) {
@@ -82,7 +104,7 @@ function ModalModelo({ titulo, dados, onChange, onSalvar, onFechar, loading, err
 
   return (
     <Portal><div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4">
-      <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-5 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div className="bg-gray-900 rounded-xl p-6 max-w-2xl w-full space-y-5 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center">
           <h3 className="font-semibold text-gray-100">{titulo}</h3>
           <button onClick={onFechar} className="text-gray-400 hover:text-gray-100 text-xl">×</button>
@@ -106,22 +128,24 @@ function ModalModelo({ titulo, dados, onChange, onSalvar, onFechar, loading, err
           </div>
         )}
 
+        {/* Dias de trabalho */}
         <div>
           <label className="text-xs text-gray-400 block mb-2">Dias de trabalho</label>
           <div className="flex gap-2 flex-wrap">
             {DIAS_SEMANA.map(({ key, label }) => (
               <button key={key} type="button" onClick={() => toggleDia(key)}
-                className={`w-10 h-10 rounded-lg text-sm font-semibold transition-colors ${
-                  dias.includes(key) ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                className={`px-3 h-9 rounded-lg text-sm font-semibold transition-colors ${
+                  diasAtivos.includes(key) ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                 }`}>
-                {label}
+                {DIAS_LABEL[key]}
               </button>
             ))}
           </div>
         </div>
 
-        <div>
-          <label className="text-xs text-gray-400 block mb-2">Horário de trabalho</label>
+        {/* Horário padrão */}
+        <div className="border border-gray-800 rounded-xl p-4 space-y-3">
+          <p className="text-sm text-gray-300 font-medium">Horário padrão <span className="text-xs text-gray-500 font-normal">(aplicado a todos os dias)</span></p>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-gray-500 block mb-1">Entrada</label>
@@ -134,34 +158,96 @@ function ModalModelo({ titulo, dados, onChange, onSalvar, onFechar, loading, err
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
             </div>
           </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm text-gray-400">Intervalo de almoço</label>
+              <button type="button" onClick={toggleAlmoco}
+                className={`relative w-11 h-6 rounded-full transition-colors ${dados.almoco_ativo ? 'bg-emerald-600' : 'bg-gray-700'}`}>
+                <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${dados.almoco_ativo ? 'left-6' : 'left-1'}`} />
+              </button>
+            </div>
+            {dados.almoco_ativo && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Início</label>
+                  <input type="time" value={dados.hora_inicio_almoco || ''} onChange={e => setHora('hora_inicio_almoco', e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Fim</label>
+                  <input type="time" value={dados.hora_fim_almoco || ''} onChange={e => setHora('hora_fim_almoco', e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+                </div>
+              </div>
+            )}
+            {dados.almoco_ativo && duracaoAlmoco && (
+              <p className="text-xs text-gray-500 mt-1">Duração: <span className="text-yellow-400">{duracaoAlmoco}</span></p>
+            )}
+          </div>
         </div>
 
-        <div className="border border-gray-800 rounded-xl p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <label className="text-sm text-gray-300 font-medium">Intervalo de almoço</label>
-            <button type="button" onClick={toggleAlmoco}
-              className={`relative w-11 h-6 rounded-full transition-colors ${dados.almoco_ativo ? 'bg-emerald-600' : 'bg-gray-700'}`}>
-              <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${dados.almoco_ativo ? 'left-6' : 'left-1'}`} />
-            </button>
-          </div>
-          {dados.almoco_ativo && (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">Início</label>
-                <input type="time" value={dados.hora_inicio_almoco || ''} onChange={e => setHora('hora_inicio_almoco', e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">Fim</label>
-                <input type="time" value={dados.hora_fim_almoco || ''} onChange={e => setHora('hora_fim_almoco', e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
-              </div>
+        {/* Horário por dia */}
+        {diasAtivos.length > 0 && (
+          <div className="border border-gray-800 rounded-xl p-4 space-y-3">
+            <div>
+              <p className="text-sm text-gray-300 font-medium">Horário personalizado por dia</p>
+              <p className="text-xs text-gray-500 mt-0.5">Deixe em branco para usar o horário padrão. Preencha apenas os dias que diferem.</p>
             </div>
-          )}
-          {dados.almoco_ativo && duracaoAlmoco && (
-            <p className="text-xs text-gray-500">Duração: <span className="text-yellow-400">{duracaoAlmoco}</span></p>
-          )}
-        </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-gray-500 border-b border-gray-800">
+                    <th className="text-left py-2 pr-3 font-medium">Dia</th>
+                    <th className="py-2 px-1 font-medium">Entrada</th>
+                    <th className="py-2 px-1 font-medium">Saída Almoço</th>
+                    <th className="py-2 px-1 font-medium">Volta Almoço</th>
+                    <th className="py-2 px-1 font-medium">Saída</th>
+                    <th className="py-2 pl-1 font-medium"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {DIAS_SEMANA.filter(d => diasAtivos.includes(d.key)).map(({ key, label }) => {
+                    const h = horariosPorDia[key] || {}
+                    const temCustom = Object.keys(h).length > 0
+                    return (
+                      <tr key={key} className={`border-b border-gray-800/40 ${temCustom ? 'bg-emerald-900/10' : ''}`}>
+                        <td className="py-2 pr-3 font-semibold text-gray-300 whitespace-nowrap">{label}</td>
+                        <td className="py-1.5 px-1 w-24">
+                          <InputHora value={h.hora_entrada || ''} onChange={v => setHorarioDia(key, 'hora_entrada', v)}
+                            placeholder={dados.hora_entrada} />
+                        </td>
+                        <td className="py-1.5 px-1 w-24">
+                          <InputHora value={h.hora_inicio_almoco || ''} onChange={v => setHorarioDia(key, 'hora_inicio_almoco', v)}
+                            placeholder={dados.hora_inicio_almoco} />
+                        </td>
+                        <td className="py-1.5 px-1 w-24">
+                          <InputHora value={h.hora_fim_almoco || ''} onChange={v => setHorarioDia(key, 'hora_fim_almoco', v)}
+                            placeholder={dados.hora_fim_almoco} />
+                        </td>
+                        <td className="py-1.5 px-1 w-24">
+                          <InputHora value={h.hora_saida || ''} onChange={v => setHorarioDia(key, 'hora_saida', v)}
+                            placeholder={dados.hora_saida} />
+                        </td>
+                        <td className="py-1.5 pl-1 w-8 text-center">
+                          {temCustom && (
+                            <button type="button" title="Limpar dia"
+                              onClick={() => {
+                                const atual = { ...(dados.horarios_por_dia || {}) }
+                                delete atual[key]
+                                onChange('horarios_por_dia', atual)
+                              }}
+                              className="text-gray-600 hover:text-red-400 text-base leading-none">×</button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Tolerância */}
         <div className="border border-gray-800 rounded-xl p-4 space-y-3">
@@ -189,7 +275,10 @@ function ModalModelo({ titulo, dados, onChange, onSalvar, onFechar, loading, err
           {fmtDias(dados.dias_trabalho)}
           {' · '}{dados.hora_entrada}–{dados.hora_saida}
           {dados.almoco_ativo && duracaoAlmoco && ` · almoço ${dados.hora_inicio_almoco}–${dados.hora_fim_almoco}`}
-          {' · '}<span className="text-emerald-400">{carga}h líquidas/dia</span>
+          {' · '}<span className="text-emerald-400">{carga}h líquidas/dia (padrão)</span>
+          {Object.keys(horariosPorDia).length > 0 && (
+            <span className="text-yellow-400"> · {Object.keys(horariosPorDia).length} dia(s) com horário diferente</span>
+          )}
         </div>
 
         {erro && <p className="text-red-400 text-sm">{erro}</p>}
@@ -234,11 +323,12 @@ export default function ModelosJornada() {
   function abrirEditar(m) {
     setForm({
       ...m,
-      hora_entrada: m.hora_entrada?.slice(0, 5) || '08:00',
-      hora_saida: m.hora_saida?.slice(0, 5) || '17:00',
+      hora_entrada: m.hora_entrada?.slice(0, 5) || '07:30',
+      hora_saida: m.hora_saida?.slice(0, 5) || '17:30',
       hora_inicio_almoco: m.hora_inicio_almoco?.slice(0, 5) || '12:00',
       hora_fim_almoco: m.hora_fim_almoco?.slice(0, 5) || '13:00',
       almoco_ativo: !!m.hora_inicio_almoco,
+      horarios_por_dia: m.horarios_por_dia || {},
     })
     setErro(''); setModal(m)
   }
@@ -259,6 +349,7 @@ export default function ModelosJornada() {
         carga_horaria_diaria: form.carga_horaria_diaria,
         tolerancia_entrada_minutos: form.tolerancia_entrada_minutos ?? 5,
         tolerancia_saida_minutos: form.tolerancia_saida_minutos ?? 5,
+        horarios_por_dia: form.horarios_por_dia || {},
       }
       if (modal === 'criar') await criarModeloJornada(payload)
       else await atualizarModeloJornada(modal.id, payload)
@@ -289,7 +380,7 @@ export default function ModelosJornada() {
             <tr className="text-gray-400 border-b border-gray-800 text-left">
               <th className="px-4 py-3">Nome</th>
               {empresas.length > 1 && <th className="px-4 py-3">Empresa</th>}
-              <th className="px-4 py-3">Horário</th>
+              <th className="px-4 py-3">Horário padrão</th>
               <th className="px-4 py-3">Dias</th>
               <th className="px-4 py-3">Carga</th>
               <th className="px-4 py-3">Tolerância</th>
@@ -299,27 +390,33 @@ export default function ModelosJornada() {
           <tbody>
             {lista.length === 0 ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">Nenhuma jornada cadastrada.</td></tr>
-            ) : lista.map(m => (
-              <tr key={m.id} className="border-b border-gray-800/50 text-gray-300 hover:bg-gray-800/30">
-                <td className="px-4 py-3 font-medium">{m.nome}</td>
-                {empresas.length > 1 && <td className="px-4 py-3 text-xs text-gray-400">{nomeEmpresa(m.empresa_id)}</td>}
-                <td className="px-4 py-3 text-xs">
-                  {m.hora_entrada?.slice(0, 5)}–{m.hora_saida?.slice(0, 5)}
-                  {m.hora_inicio_almoco && <span className="text-gray-500"> · alm {m.hora_inicio_almoco?.slice(0, 5)}–{m.hora_fim_almoco?.slice(0, 5)}</span>}
-                </td>
-                <td className="px-4 py-3 text-xs text-gray-400">{fmtDias(m.dias_trabalho)}</td>
-                <td className="px-4 py-3 text-xs text-emerald-400">{m.carga_horaria_diaria?.slice(0, 5)}h/dia</td>
-                <td className="px-4 py-3 text-xs text-gray-400">
-                  +{m.tolerancia_entrada_minutos ?? 5}min / -{m.tolerancia_saida_minutos ?? 5}min
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-1">
-                    <IconEditar onClick={() => abrirEditar(m)} />
-                    <IconExcluir onClick={() => excluir(m.id)} />
-                  </div>
-                </td>
-              </tr>
-            ))}
+            ) : lista.map(m => {
+              const nDias = Object.keys(m.horarios_por_dia || {}).length
+              return (
+                <tr key={m.id} className="border-b border-gray-800/50 text-gray-300 hover:bg-gray-800/30">
+                  <td className="px-4 py-3 font-medium">
+                    {m.nome}
+                    {nDias > 0 && <span className="ml-2 text-xs text-yellow-400 bg-yellow-900/20 border border-yellow-800/40 rounded px-1.5 py-0.5">{nDias} dia(s) diferente(s)</span>}
+                  </td>
+                  {empresas.length > 1 && <td className="px-4 py-3 text-xs text-gray-400">{nomeEmpresa(m.empresa_id)}</td>}
+                  <td className="px-4 py-3 text-xs">
+                    {m.hora_entrada?.slice(0, 5)}–{m.hora_saida?.slice(0, 5)}
+                    {m.hora_inicio_almoco && <span className="text-gray-500"> · alm {m.hora_inicio_almoco?.slice(0, 5)}–{m.hora_fim_almoco?.slice(0, 5)}</span>}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-400">{fmtDias(m.dias_trabalho)}</td>
+                  <td className="px-4 py-3 text-xs text-emerald-400">{m.carga_horaria_diaria?.slice(0, 5)}h/dia</td>
+                  <td className="px-4 py-3 text-xs text-gray-400">
+                    +{m.tolerancia_entrada_minutos ?? 5}min / -{m.tolerancia_saida_minutos ?? 5}min
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1">
+                      <IconEditar onClick={() => abrirEditar(m)} />
+                      <IconExcluir onClick={() => excluir(m.id)} />
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
