@@ -6,6 +6,9 @@ import calendar as cal_module
 import csv
 import io
 import httpx
+import logging
+
+logger = logging.getLogger(__name__)
 from db.supabase_client import supabase as sb
 from auth.deps import get_usuario_rh_atual
 
@@ -228,7 +231,15 @@ async def atualizar_colaborador(colab_id: str, body: dict, rh=Depends(get_usuari
 @router.delete("/colaboradores/{colab_id}")
 async def excluir_colaborador(colab_id: str, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
+    # Busca o auth_user_id antes de desativar
+    res = sb.table("colaboradores").select("auth_user_id").eq("id", colab_id).in_("empresa_id", ids).limit(1).execute()
     sb.table("colaboradores").update({"ativo": False}).eq("id", colab_id).in_("empresa_id", ids).execute()
+    # Remove o login do Supabase Auth para liberar o e-mail
+    if res.data and res.data[0].get("auth_user_id"):
+        try:
+            sb.auth.admin.delete_user(res.data[0]["auth_user_id"])
+        except Exception as e:
+            logger.warning(f"excluir_colaborador: falha ao remover auth user: {e}")
     return {"ok": True}
 
 
