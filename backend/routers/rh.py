@@ -832,7 +832,7 @@ async def get_calendario(
 
     # Valida acesso ao colaborador
     colab_res = sb.table("colaboradores").select(
-        "id, nome, empresa_id, modelo_jornada_id"
+        "id, nome, empresa_id, modelo_jornada_id, data_inicio_ponto"
     ).eq("id", colaborador_id).in_("empresa_id", ids).single().execute()
     if not colab_res.data:
         raise HTTPException(404, "Colaborador não encontrado")
@@ -892,10 +892,19 @@ async def get_calendario(
         partes = time_str.split(":")
         return int(partes[0]) * 60 + int(partes[1])
 
+    # Data de início do acompanhamento (dias anteriores não contam como falta)
+    data_inicio_raw = colab.get("data_inicio_ponto")
+    data_inicio = date.fromisoformat(data_inicio_raw) if data_inicio_raw else None
+
     dias = []
     for dia_num in range(1, total_dias + 1):
         d = date(ano, mes_num, dia_num)
         d_iso = d.isoformat()
+
+        # Antes do início do acompanhamento → ignora
+        if data_inicio and d < data_inicio:
+            dias.append({"data": d_iso, "status": "sem_acompanhamento"})
+            continue
 
         # Fim de semana / folga
         if d.weekday() not in dias_trabalho:

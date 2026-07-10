@@ -8,7 +8,7 @@ import {
 import Portal from '../components/Portal'
 import { IconEditar, IconExcluir, IconJornada, IconLocais, IconSenha, IconBanco, IconQR } from '../components/IconBtn'
 
-const CAMPOS_VAZIO = { nome: '', cpf: '', pis: '', email: '', cargo: '', departamento: '', empresa_id: '', carga_horaria_diaria: '08:00:00', senha: '', modo_ponto: 'ambos' }
+const CAMPOS_VAZIO = { nome: '', cpf: '', pis: '', email: '', cargo: '', departamento: '', empresa_id: '', carga_horaria_diaria: '08:00:00', senha: '', modo_ponto: 'ambos', data_inicio_ponto: '' }
 
 function ModalColaborador({ titulo, criando, dados, onChange, onSalvar, onFechar, loading, erro, empresas, modelos }) {
   return (
@@ -52,6 +52,13 @@ function ModalColaborador({ titulo, criando, dados, onChange, onSalvar, onFechar
             <option value="kiosk">Somente Dispositivo (kiosk)</option>
           </select>
           <p className="text-xs text-gray-600 mt-1">Define como este colaborador registra o ponto.</p>
+        </div>
+
+        <div>
+          <label className="text-xs text-gray-400 block mb-1">Início do acompanhamento de ponto</label>
+          <input type="date" value={dados.data_inicio_ponto || ''} onChange={e => onChange('data_inicio_ponto', e.target.value)}
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+          <p className="text-xs text-gray-600 mt-1">Dias anteriores a esta data não serão contados como falta no calendário.</p>
         </div>
 
         {criando && (

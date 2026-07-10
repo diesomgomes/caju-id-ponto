@@ -440,12 +440,13 @@ function AbaRegistros({ colaboradores, me }) {
 
 // ── Aba Calendário ────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
-  ok:          { cor: 'bg-emerald-500',  texto: 'text-emerald-100', label: 'OK' },
-  divergencia: { cor: 'bg-yellow-500',   texto: 'text-yellow-100',  label: 'Divergência' },
-  falta:       { cor: 'bg-red-600',      texto: 'text-red-100',     label: 'Falta' },
-  feriado:     { cor: 'bg-gray-600',     texto: 'text-gray-200',    label: 'Feriado' },
-  folga:       { cor: 'bg-transparent',  texto: 'text-gray-700',    label: '' },
-  futuro:      { cor: 'bg-transparent',  texto: 'text-gray-600',    label: '' },
+  ok:                  { cor: 'bg-emerald-500',  texto: 'text-emerald-100', label: 'OK' },
+  divergencia:         { cor: 'bg-yellow-500',   texto: 'text-yellow-100',  label: 'Divergência' },
+  falta:               { cor: 'bg-red-600',      texto: 'text-red-100',     label: 'Falta' },
+  feriado:             { cor: 'bg-gray-600',     texto: 'text-gray-200',    label: 'Feriado' },
+  folga:               { cor: 'bg-transparent',  texto: 'text-gray-700',    label: '' },
+  futuro:              { cor: 'bg-transparent',  texto: 'text-gray-600',    label: '' },
+  sem_acompanhamento:  { cor: 'bg-transparent',  texto: 'text-gray-400',    label: '' },
 }
 
 const DIV_LABEL = {
@@ -619,7 +620,7 @@ function AbaCalendario({ colaboradores }) {
                   const dNum = new Date(dia.data + 'T12:00:00').getDate()
                   const ehHoje = dia.data === hoje.toISOString().slice(0, 10)
                   const selecionado = diaSelecionado?.data === dia.data
-                  const clicavel = dia.status !== 'folga' && dia.status !== 'futuro'
+                  const clicavel = dia.status !== 'folga' && dia.status !== 'futuro' && dia.status !== 'sem_acompanhamento'
 
                   return (
                     <div
