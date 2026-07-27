@@ -72,7 +72,10 @@ function ModalFoto({ registro, onClose }) {
 // ── Modal Ajuste ──────────────────────────────────────────────────────────────
 function ModalAjuste({ registro, onClose, onSalvo }) {
   const [novoTipo, setNovoTipo] = useState(registro.tipo)
-  const [novoHorario, setNovoHorario] = useState(registro.registrado_em?.slice(0, 16))
+  const [novoHorario, setNovoHorario] = useState(() => {
+    const d = new Date(registro.registrado_em)
+    return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+  })
   const [motivo, setMotivo] = useState('')
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
