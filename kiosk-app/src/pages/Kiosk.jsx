@@ -281,31 +281,35 @@ export default function Kiosk({ token, onResetar }) {
       <canvas ref={canvasRef} className="hidden" />
 
       {/* Topo */}
-      <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3"
-        style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.7), transparent)' }}>
-        <div className="flex items-center gap-2"
-          onMouseDown={iniciarLongPress} onMouseUp={cancelarLongPress}
-          onTouchStart={iniciarLongPress} onTouchEnd={cancelarLongPress}>
-          {info?.empresa?.logo_url
-            ? <img src={info.empresa.logo_url} alt="logo" className="w-8 h-8 rounded-lg object-contain"
-                style={{ background: 'rgba(255,255,255,0.15)', padding: 3 }} />
-            : <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-black"
-                style={{ background: accentColor }}>CJ</div>
-          }
-          <div>
-            <p className="text-white text-xs font-bold leading-tight">{info?.empresa?.nome}</p>
-            <p className="text-white/50 text-[10px]">{info?.dispositivo?.nome}</p>
+      <div className="absolute top-0 left-0 right-0 z-10 px-4 pt-4 pb-10"
+        style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, transparent 100%)' }}>
+        <div className="flex items-center justify-between">
+          {/* Logo + nome */}
+          <div className="flex items-center gap-2 flex-1 min-w-0"
+            onMouseDown={iniciarLongPress} onMouseUp={cancelarLongPress}
+            onTouchStart={iniciarLongPress} onTouchEnd={cancelarLongPress}>
+            {info?.empresa?.logo_url
+              ? <img src={info.empresa.logo_url} alt="logo" className="w-9 h-9 rounded-xl object-contain flex-shrink-0"
+                  style={{ background: 'rgba(255,255,255,0.15)', padding: 4 }} />
+              : <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-black flex-shrink-0"
+                  style={{ background: accentColor }}>CJ</div>
+            }
+            <div className="min-w-0">
+              <p className="text-white text-sm font-bold leading-tight truncate">{info?.empresa?.nome}</p>
+              <p className="text-white/50 text-xs truncate">{info?.dispositivo?.nome}</p>
+            </div>
           </div>
-        </div>
-        <div className="flex gap-1 bg-black/40 rounded-lg p-1">
-          <button onClick={() => { setModo('qr'); resetar() }}
-            className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${modo === 'qr' ? 'bg-white text-black' : 'text-white/60'}`}>
-            QR Code
-          </button>
-          <button onClick={() => { setModo('cpf'); setMostrarCpf(true); resetar() }}
-            className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${modo === 'cpf' ? 'bg-white text-black' : 'text-white/60'}`}>
-            CPF
-          </button>
+          {/* Seletor de modo */}
+          <div className="flex gap-1 bg-black/50 rounded-xl p-1 ml-3 flex-shrink-0">
+            <button onClick={() => { setModo('qr'); resetar() }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${modo === 'qr' ? 'bg-white text-gray-900 shadow' : 'text-white/60 hover:text-white/90'}`}>
+              QR Code
+            </button>
+            <button onClick={() => { setModo('cpf'); setMostrarCpf(true); resetar() }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${modo === 'cpf' ? 'bg-white text-gray-900 shadow' : 'text-white/60 hover:text-white/90'}`}>
+              CPF
+            </button>
+          </div>
         </div>
       </div>
 
@@ -374,7 +378,7 @@ export default function Kiosk({ token, onResetar }) {
         <div className="absolute bottom-0 left-0 right-0 z-20 bg-gray-950/95 backdrop-blur rounded-t-3xl p-6 pb-8">
           <div className="w-10 h-1 bg-gray-700 rounded-full mx-auto mb-5" />
           <p className="text-white font-bold text-center mb-4">Digite o CPF</p>
-          <input type="text" inputMode="numeric" value={fmtCpf(cpfInput)}
+          <input type="tel" inputMode="numeric" pattern="[0-9]*" value={fmtCpf(cpfInput)}
             onChange={e => setCpfInput(e.target.value.replace(/\D/g, ''))}
             onKeyDown={e => e.key === 'Enter' && buscarCpf()}
             placeholder="000.000.000-00"
