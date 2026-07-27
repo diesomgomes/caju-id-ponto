@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CAJU ID Kiosk</string>
+    <string name="title_activity_main">CAJU ID Kiosk</string>
+    <string name="package_name">com.cajuid.kiosk</string>
+    <string name="custom_url_scheme">com.cajuid.kiosk</string>
+</resources>

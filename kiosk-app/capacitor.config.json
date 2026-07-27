@@ -1,0 +1,18 @@
+{
+  "appId": "com.cajuid.kiosk",
+  "appName": "CAJU ID Kiosk",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "ScreenOrientation": {
+      "default": "portrait"
+    }
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  }
+}
