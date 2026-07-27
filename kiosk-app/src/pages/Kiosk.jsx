@@ -277,7 +277,7 @@ export default function Kiosk({ token, onResetar }) {
 
   return (
     <div className="fixed inset-0 bg-black overflow-hidden" style={{ touchAction: 'none' }}>
-      <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" muted playsInline autoPlay />
+      <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} muted playsInline autoPlay />
       <canvas ref={canvasRef} className="hidden" />
 
       {/* Topo */}
