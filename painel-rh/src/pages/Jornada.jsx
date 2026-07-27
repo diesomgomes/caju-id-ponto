@@ -264,7 +264,10 @@ function AbaJornada({ colaboradores, me }) {
 function ModalNovaBatida({ colaboradores, onClose, onSalvo }) {
   const [colaboradorId, setColaboradorId] = useState('')
   const [tipo, setTipo] = useState('entrada')
-  const [horario, setHorario] = useState(() => new Date().toISOString().slice(0, 16))
+  const [horario, setHorario] = useState(() => {
+    const now = new Date()
+    return new Date(now - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+  })
   const [motivo, setMotivo] = useState('')
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
@@ -274,7 +277,7 @@ function ModalNovaBatida({ colaboradores, onClose, onSalvo }) {
     if (!motivo.trim()) return setErro('Informe o motivo do lançamento.')
     setLoading(true)
     try {
-      await criarRegistroManual({ colaborador_id: colaboradorId, tipo, registrado_em: horario + ':00', motivo })
+      await criarRegistroManual({ colaborador_id: colaboradorId, tipo, registrado_em: new Date(horario).toISOString(), motivo })
       onSalvo(); onClose()
     } catch (e) { setErro(e.message) } finally { setLoading(false) }
   }

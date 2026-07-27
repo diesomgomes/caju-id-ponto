@@ -146,7 +146,7 @@ function ModalNovaBatida({ colaboradores, onClose, onSalvo }) {
   const [tipo, setTipo] = useState('entrada')
   const [horario, setHorario] = useState(() => {
     const now = new Date()
-    return now.toISOString().slice(0, 16)
+    return new Date(now - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
   })
   const [motivo, setMotivo] = useState('')
   const [loading, setLoading] = useState(false)
@@ -160,7 +160,7 @@ function ModalNovaBatida({ colaboradores, onClose, onSalvo }) {
       await criarRegistroManual({
         colaborador_id: colaboradorId,
         tipo,
-        registrado_em: horario + ':00',
+        registrado_em: new Date(horario).toISOString(),
         motivo,
       })
       onSalvo()
