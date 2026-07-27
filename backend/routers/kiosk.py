@@ -187,7 +187,7 @@ async def kiosk_ponto(token: str, body: dict):
             "distancia_metros": None,
             "local_permitido_id": None,
             "local_nome": local_nome,
-            "foto_url": foto_url,
+            "foto_url": foto_url or "",  # NOT NULL — fallback para string vazia se upload falhou
             "ip_dispositivo": None,
             "user_agent": f"kiosk/{device['id']}",
             "hash_integridade": hash_atual,
