@@ -176,6 +176,8 @@ async def kiosk_ponto(token: str, body: dict):
             hash_anterior,
         )
 
+        local_nome = device.get("endereco") or device.get("nome")
+
         sb.table("registros_ponto").insert({
             "colaborador_id": colaborador_id,
             "empresa_id": empresa_id,
@@ -184,6 +186,7 @@ async def kiosk_ponto(token: str, body: dict):
             "lng_registro": device.get("lng"),
             "distancia_metros": None,
             "local_permitido_id": None,
+            "local_nome": local_nome,
             "foto_url": foto_url,
             "ip_dispositivo": None,
             "user_agent": f"kiosk/{device['id']}",
