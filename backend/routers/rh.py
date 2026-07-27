@@ -233,8 +233,9 @@ async def excluir_colaborador(colab_id: str, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     # Busca o auth_user_id antes de desativar
     res = sb.table("colaboradores").select("auth_user_id").eq("id", colab_id).in_("empresa_id", ids).limit(1).execute()
-    sb.table("colaboradores").update({"ativo": False}).eq("id", colab_id).in_("empresa_id", ids).execute()
-    # Remove o login do Supabase Auth para liberar o e-mail
+    # Desativa e limpa email/auth_user_id para liberar o e-mail para reutilização
+    sb.table("colaboradores").update({"ativo": False, "email": None, "auth_user_id": None}).eq("id", colab_id).in_("empresa_id", ids).execute()
+    # Remove o login do Supabase Auth
     if res.data and res.data[0].get("auth_user_id"):
         try:
             sb.auth.admin.delete_user(res.data[0]["auth_user_id"])
