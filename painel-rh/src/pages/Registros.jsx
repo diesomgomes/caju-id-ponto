@@ -97,7 +97,7 @@ function ModalAjuste({ registro, onClose, onSalvo }) {
     if (!motivo.trim()) return setErro('Informe o motivo do ajuste.')
     setLoading(true)
     try {
-      await ajustarRegistro(registro.id, { tipo: novoTipo, registrado_em: novoHorario + ':00', motivo })
+      await ajustarRegistro(registro.id, { tipo: novoTipo, registrado_em: new Date(novoHorario).toISOString(), motivo })
       onSalvo()
       onClose()
     } catch(e) { setErro(e.message) } finally { setLoading(false) }

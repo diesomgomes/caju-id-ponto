@@ -81,7 +81,7 @@ function ModalAjuste({ registro, onClose, onSalvo }) {
     if (!motivo.trim()) return setErro('Informe o motivo do ajuste.')
     setLoading(true)
     try {
-      await ajustarRegistro(registro.id, { tipo: novoTipo, registrado_em: novoHorario + ':00', motivo })
+      await ajustarRegistro(registro.id, { tipo: novoTipo, registrado_em: new Date(novoHorario).toISOString(), motivo })
       onSalvo(); onClose()
     } catch(e) { setErro(e.message) } finally { setLoading(false) }
   }
@@ -495,7 +495,11 @@ function CardRegistro({ registro, onClick }) {
         <p className="text-xs text-gray-400">{new Date(registro.registrado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
         {registro.local_nome && <p className="text-xs text-gray-500 truncate">{registro.local_nome}</p>}
         {registro.origem === 'manual' && (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30">manual</span>
+          <div className="space-y-0.5 pt-0.5">
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30">manual</span>
+            {registro.lancado_por && <p className="text-[9px] text-gray-500 truncate">por {registro.lancado_por}</p>}
+            {registro.motivo && <p className="text-[9px] text-gray-400 italic leading-tight line-clamp-2" title={registro.motivo}>"{registro.motivo}"</p>}
+          </div>
         )}
       </div>
     </div>

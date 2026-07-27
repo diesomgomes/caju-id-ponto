@@ -274,21 +274,32 @@ async def listar_registros(
         cn = sb.table("colaboradores").select("id, nome").in_("id", ids_colab).execute()
         nomes = {c["id"]: c["nome"] for c in (cn.data or [])}
 
-    # Identifica registros manuais via ajustes_ponto
+    # Identifica registros manuais via ajustes_ponto (inclui motivo e quem lançou)
     ids_regs = [r["id"] for r in regs]
-    manuais = set()
+    manuais = {}
+    nomes_rh = {}
     if ids_regs:
-        aj = sb.table("ajustes_ponto").select("registro_id") \
+        aj = sb.table("ajustes_ponto").select("registro_id, justificativa, usuario_rh_id") \
             .in_("registro_id", ids_regs) \
             .eq("campo_alterado", "criação manual").execute()
-        manuais = {a["registro_id"] for a in (aj.data or [])}
+        manuais = {a["registro_id"]: a for a in (aj.data or [])}
+        ids_rh = list({a["usuario_rh_id"] for a in (aj.data or []) if a.get("usuario_rh_id")})
+        if ids_rh:
+            rh_res = sb.table("usuarios_rh").select("id, nome").in_("id", ids_rh).execute()
+            nomes_rh = {u["id"]: u["nome"] for u in (rh_res.data or [])}
 
-    return [{
-        **r,
-        "colaborador_nome": nomes.get(r["colaborador_id"], "—"),
-        "local_nome": (r.get("locais_permitidos") or {}).get("nome") or r.get("local_nome"),
-        "origem": "manual" if r["id"] in manuais else (r.get("origem") or "app"),
-    } for r in regs]
+    result = []
+    for r in regs:
+        aj_info = manuais.get(r["id"])
+        result.append({
+            **r,
+            "colaborador_nome": nomes.get(r["colaborador_id"], "—"),
+            "local_nome": (r.get("locais_permitidos") or {}).get("nome") or r.get("local_nome"),
+            "origem": "manual" if aj_info else (r.get("origem") or "app"),
+            "motivo": aj_info["justificativa"] if aj_info else None,
+            "lancado_por": nomes_rh.get(aj_info["usuario_rh_id"], "") if aj_info else None,
+        })
+    return result
 
 
 @router.get("/registros/{registro_id}/foto")
