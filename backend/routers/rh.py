@@ -1,8 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from datetime import date, timedelta, datetime, timezone
+from zoneinfo import ZoneInfo
 from typing import Optional
 import calendar as cal_module
+
+TZ_BR = ZoneInfo("America/Sao_Paulo")
 import csv
 import io
 import httpx
@@ -985,12 +988,32 @@ async def get_calendario(
 
         # Avalia divergências
         divergencias = []
+        eh_hoje = (d == hoje)
+        agora_br = datetime.now(TZ_BR)
+        agora_min = agora_br.hour * 60 + agora_br.minute
+
+        def reg_minutos_local(registrado_em_str: str) -> int | None:
+            """Converte registrado_em (UTC ISO) para minutos no fuso BR."""
+            try:
+                dt = datetime.fromisoformat(registrado_em_str.replace("Z", "+00:00"))
+                dt_br = dt.astimezone(TZ_BR)
+                return dt_br.hour * 60 + dt_br.minute
+            except Exception:
+                return None
 
         tipos_presentes = {r["tipo"] for r in regs}
         if "entrada" not in tipos_presentes:
             divergencias.append("sem_entrada")
+
+        # sem_saida: só marca se dia já encerrou (ontem ou anterior),
+        # ou se hoje já passou do horário esperado de saída
         if "saida" not in tipos_presentes:
-            divergencias.append("sem_saida")
+            if not eh_hoje:
+                divergencias.append("sem_saida")
+            elif saida_esp:
+                h_saida = minutos(saida_esp[:5])
+                if h_saida and agora_min > (h_saida + tolerancia_saida):
+                    divergencias.append("sem_saida")
 
         for r in regs:
             if r.get("status") != "valido":
@@ -1005,17 +1028,17 @@ async def get_calendario(
         if entrada_esp and regs:
             entrada_reg = next((r for r in regs if r["tipo"] == "entrada"), None)
             if entrada_reg and entrada_reg.get("id") not in ajustados_cal:
-                h_reg = minutos(entrada_reg["registrado_em"][11:16])
+                h_reg = reg_minutos_local(entrada_reg["registrado_em"])
                 h_esp = minutos(entrada_esp[:5])
-                if h_reg and h_esp and (h_reg - h_esp) > tolerancia_entrada:
+                if h_reg is not None and h_esp and (h_reg - h_esp) > tolerancia_entrada:
                     divergencias.append("atraso_entrada")
 
         if saida_esp and regs:
             saida_reg = next((r for r in regs if r["tipo"] == "saida"), None)
             if saida_reg and saida_reg.get("id") not in ajustados_cal:
-                h_reg = minutos(saida_reg["registrado_em"][11:16])
+                h_reg = reg_minutos_local(saida_reg["registrado_em"])
                 h_esp = minutos(saida_esp[:5])
-                if h_reg and h_esp and (h_esp - h_reg) > tolerancia_saida:
+                if h_reg is not None and h_esp and (h_esp - h_reg) > tolerancia_saida:
                     divergencias.append("saida_antecipada")
 
         status = "divergencia" if divergencias else "ok"

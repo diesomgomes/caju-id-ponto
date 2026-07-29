@@ -496,7 +496,7 @@ function CardRegistro({ registro, onClick }) {
       <div className="px-3 py-2 space-y-0.5">
         <p className="text-xs font-semibold text-gray-100">{TIPO_LABEL[registro.tipo] || registro.tipo}</p>
         <p className="text-xs text-gray-400">{new Date(registro.registrado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
-        {registro.ajustado && registro.horario_original && (
+        {registro.ajustado && registro.horario_original && !isNaN(new Date(registro.horario_original)) && (
           <p className="text-[10px] text-gray-500 line-through">
             orig: {new Date(registro.horario_original).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
           </p>
@@ -718,7 +718,7 @@ function AbaCalendario({ colaboradores }) {
 
                   {!loadingDia && registrosDia.length > 0 && (
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                      {registrosDia.map(r => (
+                      {[...registrosDia].sort((a, b) => new Date(a.registrado_em) - new Date(b.registrado_em)).map(r => (
                         <CardRegistro key={r.id} registro={r} onClick={setFotoReg} />
                       ))}
                     </div>
