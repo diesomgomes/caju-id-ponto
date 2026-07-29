@@ -1152,23 +1152,23 @@ async def get_relatorio(
     num = 1
     for c in colabs:
         cid = c["id"]
-        d = primeiro
-        while d <= ultimo:
-            d_iso = d.isoformat()
+        # Apenas dias com pelo menos um registro
+        datas_com_registro = sorted(
+            d_iso for (c_id, d_iso) in agrup if c_id == cid
+        )
+        for d_iso in datas_com_registro:
+            try:
+                d = date.fromisoformat(d_iso)
+            except Exception:
+                continue
             dia_semana = DIAS_PT[d.weekday()]
-            chave = (cid, d_iso)
-            batidas = agrup.get(chave, {})
+            batidas = agrup[(cid, d_iso)]
 
-            # Divergências simples
             divergencias = []
-            if d < hoje_br and d.weekday() < 5:  # dia útil passado
-                if not batidas:
-                    divergencias.append("Falta")
-                else:
-                    if "entrada" not in batidas:
-                        divergencias.append("Sem entrada")
-                    if "saida" not in batidas:
-                        divergencias.append("Sem saída")
+            if "entrada" not in batidas:
+                divergencias.append("Sem entrada")
+            if d < hoje_br and "saida" not in batidas:
+                divergencias.append("Sem saída")
 
             rows.append({
                 "num":             num,
