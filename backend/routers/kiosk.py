@@ -10,6 +10,7 @@ from db.supabase_client import supabase as sb
 
 logger = logging.getLogger(__name__)
 from services.hash_chain import calcular_hash
+from services.jornada import atualizar_jornada_dia, parse_interval
 from services.sequencia import proxima_batida_esperada
 from services.storage import upload_selfie
 
@@ -200,6 +201,19 @@ async def kiosk_ponto(token: str, body: dict):
     except Exception as e:
         logger.error(f"kiosk_ponto INSERT error: {traceback.format_exc()}")
         raise HTTPException(500, f"Erro ao registrar ponto: {str(e)}")
+
+    # Atualiza jornada diária ao registrar saída
+    if tipo == "saida":
+        try:
+            emp = sb.table("empresas").select("carga_horaria_diaria").eq("id", empresa_id).single().execute()
+            carga = parse_interval(
+                colaborador.get("carga_horaria_diaria")
+                or (emp.data or {}).get("carga_horaria_diaria")
+                or "08:00:00"
+            )
+            atualizar_jornada_dia(colaborador_id, empresa_id, hoje_br, carga)
+        except Exception as e:
+            logger.warning(f"kiosk_ponto: falha ao atualizar jornada: {e}")
 
     return {
         "ok": True,

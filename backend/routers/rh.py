@@ -4,6 +4,7 @@ from datetime import date, timedelta, datetime, timezone
 from zoneinfo import ZoneInfo
 from typing import Optional
 import calendar as cal_module
+from services.jornada import atualizar_jornada_dia, parse_interval
 
 TZ_BR = ZoneInfo("America/Sao_Paulo")
 import csv
@@ -384,6 +385,20 @@ async def criar_registro_manual(body: dict, rh=Depends(get_usuario_rh_atual)):
         "justificativa": motivo or "Registro inserido manualmente pelo RH",
     }).execute()
 
+    # Recalcula jornada do dia afetado (qualquer tipo pode alterar o total)
+    try:
+        dia_reg = date.fromisoformat(registrado_em[:10])
+        emp = sb.table("empresas").select("carga_horaria_diaria").eq("id", empresa_id).single().execute()
+        colab_full = sb.table("colaboradores").select("carga_horaria_diaria").eq("id", colaborador_id).single().execute()
+        carga = parse_interval(
+            (colab_full.data or {}).get("carga_horaria_diaria")
+            or (emp.data or {}).get("carga_horaria_diaria")
+            or "08:00:00"
+        )
+        atualizar_jornada_dia(colaborador_id, empresa_id, dia_reg, carga)
+    except Exception as e:
+        logger.warning(f"criar_registro_manual: falha ao atualizar jornada: {e}")
+
     return {"ok": True, "id": registro_id}
 
 
@@ -428,6 +443,24 @@ async def ajustar_registro(registro_id: str, body: dict, rh=Depends(get_usuario_
     if body.get("tipo"): update["tipo"] = body["tipo"]
     if body.get("registrado_em"): update["registrado_em"] = body["registrado_em"]
     sb.table("registros_ponto").update(update).eq("id", registro_id).execute()
+
+    # Recalcula jornada do dia afetado
+    try:
+        reg_em = body.get("registrado_em") or res.data["registrado_em"]
+        dia_reg = date.fromisoformat(reg_em[:10])
+        emp = sb.table("empresas").select("carga_horaria_diaria").eq("id", res.data["empresa_id"]).single().execute()
+        reg_colab = sb.table("registros_ponto").select("colaborador_id").eq("id", registro_id).single().execute()
+        colab_id = reg_colab.data["colaborador_id"]
+        colab_full = sb.table("colaboradores").select("carga_horaria_diaria").eq("id", colab_id).single().execute()
+        carga = parse_interval(
+            (colab_full.data or {}).get("carga_horaria_diaria")
+            or (emp.data or {}).get("carga_horaria_diaria")
+            or "08:00:00"
+        )
+        atualizar_jornada_dia(colab_id, res.data["empresa_id"], dia_reg, carga)
+    except Exception as e:
+        logger.warning(f"ajustar_registro: falha ao atualizar jornada: {e}")
+
     return {"ok": True}
 
 
@@ -471,9 +504,16 @@ async def listar_jornadas(
             .lt("registrado_em", fim + "T00:00:00") \
             .in_("colaborador_id", ids_colab).execute()
         for r in (rq.data or []):
-            dt = r["registrado_em"][:10]
-            key = (r["colaborador_id"], dt, r["tipo"])
-            regs_idx[key] = r["registrado_em"][11:19]
+            try:
+                dt_utc = datetime.fromisoformat(r["registrado_em"].replace("Z", "+00:00"))
+                dt_br = dt_utc.astimezone(TZ_BR)
+                dt_key = dt_br.date().isoformat()
+                hora_local = dt_br.strftime("%H:%M:%S")
+            except Exception:
+                dt_key = r["registrado_em"][:10]
+                hora_local = r["registrado_em"][11:19]
+            key = (r["colaborador_id"], dt_key, r["tipo"])
+            regs_idx[key] = hora_local
 
     result = []
     for j in jornadas:
