@@ -1087,6 +1087,106 @@ async def get_calendario(
     return {"colaborador": colab, "mes": mes, "dias": dias}
 
 
+# ── Relatório mensal ──────────────────────────────────────────────────────────
+
+@router.get("/relatorio")
+async def get_relatorio(
+    mes: str = Query(..., description="AAAA-MM"),
+    colaborador_id: Optional[str] = None,
+    rh=Depends(get_usuario_rh_atual),
+):
+    """Retorna dados tabulados por dia/colaborador para exportação (XLSX/PDF)."""
+    ids = _empresa_ids(rh)
+    if not ids:
+        return []
+
+    try:
+        ano, m = int(mes[:4]), int(mes[5:7])
+    except Exception:
+        raise HTTPException(400, "Parâmetro mes inválido. Use AAAA-MM.")
+
+    primeiro = date(ano, m, 1)
+    ultimo   = date(ano, m, cal_module.monthrange(ano, m)[1])
+
+    # Busca colaboradores
+    q_colabs = sb.table("colaboradores").select("id, nome").in_("empresa_id", ids).eq("ativo", True).order("nome")
+    if colaborador_id:
+        q_colabs = q_colabs.eq("id", colaborador_id)
+    colabs = q_colabs.execute().data or []
+    if not colabs:
+        return []
+    colab_nomes = {c["id"]: c["nome"] for c in colabs}
+    colab_ids   = [c["id"] for c in colabs]
+
+    # Busca todos os registros do mês
+    ini = f"{primeiro.isoformat()}T00:00:00+00:00"
+    fim = f"{ultimo.isoformat()}T23:59:59+00:00"
+    regs_res = sb.table("registros_ponto") \
+        .select("colaborador_id, tipo, registrado_em") \
+        .in_("colaborador_id", colab_ids) \
+        .gte("registrado_em", ini) \
+        .lte("registrado_em", fim) \
+        .order("registrado_em") \
+        .execute()
+    regs = regs_res.data or []
+
+    # Agrupa: { (colab_id, data_br): { tipo: "HH:MM" } }
+    from collections import defaultdict
+    agrup: dict = defaultdict(dict)
+    for r in regs:
+        try:
+            dt_utc = datetime.fromisoformat(r["registrado_em"].replace("Z", "+00:00"))
+            dt_br  = dt_utc.astimezone(TZ_BR)
+            chave  = (r["colaborador_id"], dt_br.date().isoformat())
+            tipo   = r["tipo"]
+            if tipo not in agrup[chave]:
+                agrup[chave][tipo] = dt_br.strftime("%H:%M")
+        except Exception:
+            pass
+
+    hoje_br = datetime.now(TZ_BR).date()
+    DIAS_PT = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
+    TIPO_ORDER = ["entrada", "saida_almoco", "retorno_almoco", "saida"]
+
+    rows = []
+    num = 1
+    for c in colabs:
+        cid = c["id"]
+        d = primeiro
+        while d <= ultimo:
+            d_iso = d.isoformat()
+            dia_semana = DIAS_PT[d.weekday()]
+            chave = (cid, d_iso)
+            batidas = agrup.get(chave, {})
+
+            # Divergências simples
+            divergencias = []
+            if d < hoje_br and d.weekday() < 5:  # dia útil passado
+                if not batidas:
+                    divergencias.append("Falta")
+                else:
+                    if "entrada" not in batidas:
+                        divergencias.append("Sem entrada")
+                    if "saida" not in batidas:
+                        divergencias.append("Sem saída")
+
+            rows.append({
+                "num":             num,
+                "data":            d.strftime("%d/%m/%Y"),
+                "dia_semana":      dia_semana,
+                "colaborador":     c["nome"],
+                "entrada":         batidas.get("entrada", "—"),
+                "saida_almoco":    batidas.get("saida_almoco", "—"),
+                "retorno_almoco":  batidas.get("retorno_almoco", "—"),
+                "saida":           batidas.get("saida", "—"),
+                "divergencias":    ", ".join(divergencias) if divergencias else "OK",
+            })
+            num += 1
+            d += timedelta(days=1)
+
+    return rows
+
+
 # ── Configuração visual da tela de login ──────────────────────────────────────
 
 @router.get("/login-config")

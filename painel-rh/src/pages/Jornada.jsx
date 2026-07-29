@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import L from 'leaflet'
+import * as XLSX from 'xlsx'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 import {
   getJornadas, getRegistros, getColaboradores, exportarJornadas,
   excluirJornada, excluirRegistro, getFotoUrl, ajustarRegistro, getMe,
-  getCalendario, criarRegistroManual,
+  getCalendario, criarRegistroManual, getRelatorio,
 } from '../api'
 import Portal from '../components/Portal'
 import { IconVer, IconAjustar, IconExcluir } from '../components/IconBtn'
@@ -521,6 +524,46 @@ function CardRegistro({ registro, onClick }) {
   )
 }
 
+async function exportarRelatorio(mes, colaboradorId, colaboradores, formato) {
+  const rows = await getRelatorio(mes, colaboradorId || null)
+  if (!rows?.length) { alert('Nenhum dado para exportar.'); return }
+
+  const [ano, m] = mes.split('-')
+  const nomeMes = new Date(Number(ano), Number(m) - 1, 1).toLocaleString('pt-BR', { month: 'long' })
+  const nomeColab = colaboradorId
+    ? (colaboradores.find(c => c.id === colaboradorId)?.nome || 'colaborador')
+    : 'Todos os colaboradores'
+  const titulo = `Relatório de Ponto — ${nomeColab} — ${nomeMes}/${ano}`
+
+  const cabecalho = ['#', 'Data', 'Dia', 'Colaborador', 'Entrada', 'Saída Almoço', 'Retorno Almoço', 'Saída', 'Divergências']
+  const linhas = rows.map(r => [
+    r.num, r.data, r.dia_semana, r.colaborador,
+    r.entrada, r.saida_almoco, r.retorno_almoco, r.saida, r.divergencias,
+  ])
+
+  if (formato === 'xlsx') {
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.aoa_to_sheet([[titulo], [], cabecalho, ...linhas])
+    ws['!cols'] = [4,12,10,28,10,14,16,10,30].map(w => ({ wch: w }))
+    XLSX.utils.book_append_sheet(wb, ws, 'Relatório')
+    XLSX.writeFile(wb, `relatorio_ponto_${mes}.xlsx`)
+  } else {
+    const doc = new jsPDF({ orientation: 'landscape' })
+    doc.setFontSize(12)
+    doc.text(titulo, 14, 14)
+    autoTable(doc, {
+      startY: 20,
+      head: [cabecalho],
+      body: linhas,
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [5, 150, 105] },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+      columnStyles: { 8: { cellWidth: 40 } },
+    })
+    doc.save(`relatorio_ponto_${mes}.pdf`)
+  }
+}
+
 function AbaCalendario({ colaboradores }) {
   const hoje = new Date()
   const [colaboradorId, setColaboradorId] = useState('')
@@ -531,6 +574,7 @@ function AbaCalendario({ colaboradores }) {
   const [registrosDia, setRegistrosDia] = useState([])
   const [loadingDia, setLoadingDia] = useState(false)
   const [fotoReg, setFotoReg] = useState(null)
+  const [exportando, setExportando] = useState(false)
 
   async function buscar() {
     if (!colaboradorId) return
@@ -575,33 +619,73 @@ function AbaCalendario({ colaboradores }) {
     return acc
   }, {}) || {}
 
+  async function handleExportar(fmt) {
+    setExportando(true)
+    try { await exportarRelatorio(mes, colaboradorId, colaboradores, fmt) }
+    catch (e) { console.error(e); alert('Erro ao gerar relatório.') }
+    finally { setExportando(false) }
+  }
+
   return (
     <div className="space-y-5">
       {/* Filtros */}
-      <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 flex flex-wrap gap-3 items-end">
-        <div>
-          <label className="text-xs text-gray-400 block mb-1">Colaborador *</label>
-          <select value={colaboradorId} onChange={e => setColaboradorId(e.target.value)}
-            className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm">
-            <option value="">Selecione um colaborador</option>
-            {colaboradores.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
-          </select>
-        </div>
-        <div className="flex items-end gap-2">
-          <button onClick={() => navMes(-1)}
-            className="w-9 h-9 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-lg flex items-center justify-center">‹</button>
+      <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 flex flex-wrap gap-3 items-end justify-between">
+        <div className="flex flex-wrap gap-3 items-end">
           <div>
-            <label className="text-xs text-gray-400 block mb-1">Mês</label>
-            <input type="month" value={mes} onChange={e => setMes(e.target.value)}
-              className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+            <label className="text-xs text-gray-400 block mb-1">Colaborador</label>
+            <select value={colaboradorId} onChange={e => setColaboradorId(e.target.value)}
+              className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm">
+              <option value="">Todos os colaboradores</option>
+              {colaboradores.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select>
           </div>
-          <button onClick={() => navMes(1)}
-            className="w-9 h-9 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-lg flex items-center justify-center">›</button>
+          <div className="flex items-end gap-2">
+            <button onClick={() => navMes(-1)}
+              className="w-9 h-9 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-lg flex items-center justify-center">‹</button>
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Mês</label>
+              <input type="month" value={mes} onChange={e => setMes(e.target.value)}
+                className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+            </div>
+            <button onClick={() => navMes(1)}
+              className="w-9 h-9 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-lg flex items-center justify-center">›</button>
+          </div>
+        </div>
+
+        {/* Botões exportar */}
+        <div className="flex gap-2 items-end">
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">Exportar relatório</label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleExportar('xlsx')}
+                disabled={exportando}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-medium transition-colors"
+              >
+                {exportando ? '…' : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                )} XLSX
+              </button>
+              <button
+                onClick={() => handleExportar('pdf')}
+                disabled={exportando}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-medium transition-colors"
+              >
+                {exportando ? '…' : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                )} PDF
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
       {!colaboradorId && (
-        <div className="text-center py-16 text-gray-500">Selecione um colaborador para ver o calendário.</div>
+        <div className="text-center py-16 text-gray-500">Selecione um colaborador para ver o calendário, ou use os botões acima para exportar o relatório de todos.</div>
       )}
 
       {colaboradorId && loading && (
@@ -737,7 +821,7 @@ function AbaCalendario({ colaboradores }) {
 
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function Jornada() {
-  const [aba, setAba] = useState('jornada')
+  const [aba, setAba] = useState('calendario')
   const [colaboradores, setColaboradores] = useState([])
   const [me, setMe] = useState(null)
 
@@ -747,14 +831,13 @@ export default function Jornada() {
   }, [])
 
   const abas = [
-    { id: 'jornada',    label: 'Acompanhamento de jornada' },
     { id: 'calendario', label: 'Calendário' },
     { id: 'registros',  label: 'Registro de batidas' },
   ]
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-100">Acompanhamento de jornada</h1>
+      <h1 className="text-2xl font-bold text-gray-100">Ponto</h1>
 
       {/* Abas */}
       <div className="flex gap-1 border-b border-gray-800">
@@ -773,7 +856,6 @@ export default function Jornada() {
         ))}
       </div>
 
-      {aba === 'jornada'    && <AbaJornada    colaboradores={colaboradores} me={me} />}
       {aba === 'calendario' && <AbaCalendario colaboradores={colaboradores} />}
       {aba === 'registros'  && <AbaRegistros  colaboradores={colaboradores} me={me} />}
     </div>
