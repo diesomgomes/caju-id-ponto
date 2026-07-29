@@ -496,7 +496,19 @@ function CardRegistro({ registro, onClick }) {
       <div className="px-3 py-2 space-y-0.5">
         <p className="text-xs font-semibold text-gray-100">{TIPO_LABEL[registro.tipo] || registro.tipo}</p>
         <p className="text-xs text-gray-400">{new Date(registro.registrado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+        {registro.ajustado && registro.horario_original && (
+          <p className="text-[10px] text-gray-500 line-through">
+            orig: {new Date(registro.horario_original).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+          </p>
+        )}
         {registro.local_nome && <p className="text-xs text-gray-500 truncate">{registro.local_nome}</p>}
+        {registro.ajustado && (
+          <div className="space-y-0.5 pt-0.5">
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30">ajustado</span>
+            {registro.ajuste_por && <p className="text-[9px] text-gray-500 truncate">por {registro.ajuste_por}</p>}
+            {registro.ajuste_motivo && <p className="text-[9px] text-gray-400 italic leading-tight line-clamp-2" title={registro.ajuste_motivo}>"{registro.ajuste_motivo}"</p>}
+          </div>
+        )}
         {registro.origem === 'manual' && (
           <div className="space-y-0.5 pt-0.5">
             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30">manual</span>

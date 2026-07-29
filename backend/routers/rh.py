@@ -288,9 +288,23 @@ async def listar_registros(
             rh_res = sb.table("usuarios_rh").select("id, nome").in_("id", ids_rh).execute()
             nomes_rh = {u["id"]: u["nome"] for u in (rh_res.data or [])}
 
+    # Identifica registros com ajuste de horário (não criação manual)
+    ajustes_tempo = {}
+    nomes_rh_aj = {}
+    if ids_regs:
+        aj2 = sb.table("ajustes_ponto").select("registro_id, valor_anterior, justificativa, usuario_rh_id") \
+            .in_("registro_id", ids_regs) \
+            .neq("campo_alterado", "criação manual").execute()
+        ajustes_tempo = {a["registro_id"]: a for a in (aj2.data or []) if a.get("valor_anterior")}
+        ids_rh2 = list({a["usuario_rh_id"] for a in (aj2.data or []) if a.get("usuario_rh_id")})
+        if ids_rh2:
+            rh_res2 = sb.table("usuarios_rh").select("id, nome").in_("id", ids_rh2).execute()
+            nomes_rh_aj = {u["id"]: u["nome"] for u in (rh_res2.data or [])}
+
     result = []
     for r in regs:
         aj_info = manuais.get(r["id"])
+        aj_tempo = ajustes_tempo.get(r["id"])
         result.append({
             **r,
             "colaborador_nome": nomes.get(r["colaborador_id"], "—"),
@@ -298,6 +312,10 @@ async def listar_registros(
             "origem": "manual" if aj_info else (r.get("origem") or "app"),
             "motivo": aj_info["justificativa"] if aj_info else None,
             "lancado_por": nomes_rh.get(aj_info["usuario_rh_id"], "") if aj_info else None,
+            "ajustado": bool(aj_tempo),
+            "horario_original": aj_tempo["valor_anterior"] if aj_tempo else None,
+            "ajuste_por": nomes_rh_aj.get(aj_tempo["usuario_rh_id"], "") if aj_tempo else None,
+            "ajuste_motivo": aj_tempo["justificativa"] if aj_tempo else None,
         })
     return result
 
@@ -397,8 +415,8 @@ async def ajustar_registro(registro_id: str, body: dict, rh=Depends(get_usuario_
         "registro_id": registro_id,
         "usuario_rh_id": rh["id"],
         "campo_alterado": ", ".join(campos) or "manual",
-        "valor_anterior": res.data.get("tipo"),
-        "valor_novo": body.get("tipo") or body.get("registrado_em"),
+        "valor_anterior": res.data.get("registrado_em") if body.get("registrado_em") else res.data.get("tipo"),
+        "valor_novo": body.get("registrado_em") or body.get("tipo"),
         "justificativa": body.get("motivo", ""),
     }
     sb.table("ajustes_ponto").insert(ajuste).execute()
@@ -896,10 +914,19 @@ async def get_calendario(
     jornadas_idx = {j["data"]: j for j in jornadas_res}
 
     # Registros do período
-    regs_res = sb.table("registros_ponto").select("tipo, status, foto_url, registrado_em") \
+    regs_res = sb.table("registros_ponto").select("id, tipo, status, foto_url, registrado_em") \
         .eq("colaborador_id", colaborador_id) \
         .gte("registrado_em", inicio + "T00:00:00") \
         .lte("registrado_em", fim + "T23:59:59").execute().data or []
+
+    # Registros com ajuste de horário (não contam como atraso/saída antecipada)
+    ids_regs_cal = [r["id"] for r in regs_res]
+    ajustados_cal = set()
+    if ids_regs_cal:
+        aj_cal = sb.table("ajustes_ponto").select("registro_id") \
+            .in_("registro_id", ids_regs_cal) \
+            .neq("campo_alterado", "criação manual").execute()
+        ajustados_cal = {a["registro_id"] for a in (aj_cal.data or [])}
 
     # Agrupa registros por data
     regs_por_dia: dict[str, list] = {}
@@ -977,7 +1004,7 @@ async def get_calendario(
 
         if entrada_esp and regs:
             entrada_reg = next((r for r in regs if r["tipo"] == "entrada"), None)
-            if entrada_reg:
+            if entrada_reg and entrada_reg.get("id") not in ajustados_cal:
                 h_reg = minutos(entrada_reg["registrado_em"][11:16])
                 h_esp = minutos(entrada_esp[:5])
                 if h_reg and h_esp and (h_reg - h_esp) > tolerancia_entrada:
@@ -985,7 +1012,7 @@ async def get_calendario(
 
         if saida_esp and regs:
             saida_reg = next((r for r in regs if r["tipo"] == "saida"), None)
-            if saida_reg:
+            if saida_reg and saida_reg.get("id") not in ajustados_cal:
                 h_reg = minutos(saida_reg["registrado_em"][11:16])
                 h_esp = minutos(saida_esp[:5])
                 if h_reg and h_esp and (h_esp - h_reg) > tolerancia_saida:
