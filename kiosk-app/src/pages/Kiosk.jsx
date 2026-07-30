@@ -517,7 +517,7 @@ export default function Kiosk({ token, onResetar }) {
               QR Code
             </button>
             <button
-              onClick={() => { setModo('cpf'); setMostrarCpf(true); setCpfInput(''); setCpfErro(''); resetar() }}
+              onClick={() => { setModo('cpf'); setFase('scan'); setColaborador(null); setContagem(3); setResultado(null); setCpfInput(''); setCpfErro(''); setMostrarCpf(true) }}
               className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl font-bold text-sm transition-all ${
                 modo === 'cpf'
                   ? 'bg-white text-gray-900 shadow-lg'
