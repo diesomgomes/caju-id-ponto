@@ -49,9 +49,16 @@ export default function Kiosk({ token, onResetar }) {
 
   const accentColor = branding?.cor_fundo || '#059669'
 
-  // ── Câmera: inicia uma vez, nunca para por rede ─────────────────────────────
+  // ── Câmera: reinicia sempre que necessário ─────────────────────────────────
   const iniciarCamera = useCallback(async () => {
-    if (streamRef.current) return // já está rodando
+    // Para qualquer stream antigo antes de pedir novo
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false,
@@ -61,6 +68,7 @@ export default function Kiosk({ token, onResetar }) {
         videoRef.current.srcObject = stream
         await videoRef.current.play()
       }
+      setCameraErro('')
     } catch (e) {
       setCameraErro('Câmera indisponível: ' + e.message)
     }
@@ -73,6 +81,28 @@ export default function Kiosk({ token, onResetar }) {
       cancelAnimationFrame(rafRef.current)
       streamRef.current?.getTracks().forEach(t => t.stop())
       streamRef.current = null
+    }
+  }, [pinOk, iniciarCamera])
+
+  // ── Reinicia câmera ao voltar para o foreground ────────────────────────────
+  useEffect(() => {
+    if (!pinOk) return
+
+    const aoVoltar = () => {
+      if (document.visibilityState === 'visible') {
+        // Pequeno delay para o Android liberar o hardware da câmera
+        setTimeout(iniciarCamera, 300)
+      }
+    }
+
+    // visibilitychange cobre maioria dos casos no WebView
+    document.addEventListener('visibilitychange', aoVoltar)
+    // 'resume' é disparado pelo Capacitor ao voltar do background
+    document.addEventListener('resume', aoVoltar)
+
+    return () => {
+      document.removeEventListener('visibilitychange', aoVoltar)
+      document.removeEventListener('resume', aoVoltar)
     }
   }, [pinOk, iniciarCamera])
 
