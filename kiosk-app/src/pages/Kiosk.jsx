@@ -393,10 +393,11 @@ export default function Kiosk({ token, onResetar }) {
         </div>
       )}
 
-      {/* Topo — só logo + nome, sem botões de modo */}
-      <div className={`absolute left-0 right-0 z-10 px-4 pb-10 ${offline ? 'top-7' : 'top-0'} pt-4`}
-        style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, transparent 100%)' }}>
-        <div className="flex items-center gap-2"
+      {/* Topo — logo + nome + botões de modo */}
+      <div className={`absolute left-0 right-0 z-10 px-4 ${offline ? 'top-7' : 'top-0'} pt-4 pb-3`}
+        style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 85%, transparent 100%)' }}>
+        {/* Linha 1: logo + nome */}
+        <div className="flex items-center gap-2 mb-3"
           onMouseDown={iniciarLongPress} onMouseUp={cancelarLongPress}
           onTouchStart={iniciarLongPress} onTouchEnd={cancelarLongPress}>
           {info?.empresa?.logo_url
@@ -410,6 +411,34 @@ export default function Kiosk({ token, onResetar }) {
             <p className="text-white/50 text-xs truncate">{info?.dispositivo?.nome}</p>
           </div>
         </div>
+        {/* Linha 2: botões QR / CPF */}
+        {fase === 'scan' && !mostrarCpf && (
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setModo('qr'); resetar() }}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm transition-all ${
+                modo === 'qr' ? 'bg-white text-gray-900 shadow-lg' : 'bg-white/15 text-white/80'
+              }`}>
+              <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+                <rect x="3" y="14" width="7" height="7" rx="1"/>
+                <path d="M14 14h2v2h-2zM18 14h3v2h-3zM14 18h2v3h-2zM18 18h3v3h-3z"/>
+              </svg>
+              QR Code
+            </button>
+            <button
+              onClick={() => { setModo('cpf'); setFase('scan'); setColaborador(null); setContagem(3); setResultado(null); setCpfInput(''); setCpfErro(''); setMostrarCpf(true) }}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm transition-all ${
+                modo === 'cpf' ? 'bg-white text-gray-900 shadow-lg' : 'bg-white/15 text-white/80'
+              }`}>
+              <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <rect x="5" y="2" width="14" height="20" rx="2"/>
+                <path d="M9 7h6M9 11h6M9 15h4"/>
+              </svg>
+              Digitar CPF
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Guia central QR (só no modo qr em scan) */}
@@ -527,41 +556,6 @@ export default function Kiosk({ token, onResetar }) {
         </div>
       )}
 
-      {/* Botões de modo — grandes, no rodapé, sempre visíveis em scan */}
-      {fase === 'scan' && !mostrarCpf && (
-        <div className="absolute bottom-0 left-0 right-0 z-10 p-4"
-          style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)' }}>
-          <div className="flex gap-3">
-            <button
-              onClick={() => { setModo('qr'); resetar() }}
-              className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl font-bold text-sm transition-all ${
-                modo === 'qr'
-                  ? 'bg-white text-gray-900 shadow-lg'
-                  : 'bg-white/15 text-white/70 hover:bg-white/25'
-              }`}>
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-                <rect x="3" y="14" width="7" height="7" rx="1"/>
-                <path d="M14 14h2v2h-2zM18 14h3v2h-3zM14 18h2v3h-2zM18 18h3v3h-3z"/>
-              </svg>
-              QR Code
-            </button>
-            <button
-              onClick={() => { setModo('cpf'); setFase('scan'); setColaborador(null); setContagem(3); setResultado(null); setCpfInput(''); setCpfErro(''); setMostrarCpf(true) }}
-              className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl font-bold text-sm transition-all ${
-                modo === 'cpf'
-                  ? 'bg-white text-gray-900 shadow-lg'
-                  : 'bg-white/15 text-white/70 hover:bg-white/25'
-              }`}>
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <rect x="5" y="2" width="14" height="20" rx="2"/>
-                <path d="M9 7h6M9 11h6M9 15h4"/>
-              </svg>
-              Digitar CPF
-            </button>
-          </div>
-        </div>
-      )}
 
       {mostrarReset && (
         <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-50 p-6">
