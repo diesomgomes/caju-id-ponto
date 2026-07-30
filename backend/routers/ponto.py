@@ -15,7 +15,10 @@ from models.schemas import PontoRegistrarResponse
 from services.geofencing import encontrar_local_mais_proximo
 from services.hash_chain import calcular_hash
 from services.jornada import atualizar_jornada_dia, parse_interval, timedelta_para_interval
-from services.sequencia import proxima_batida_esperada, validar_sequencia
+from services.sequencia import (
+    proxima_batida_esperada, validar_sequencia,
+    validar_sequencia_fora_jornada, dia_util_para_colaborador,
+)
 from services.storage import FotoInvalida, gerar_url_assinada, upload_selfie
 
 router = APIRouter(prefix="/ponto", tags=["ponto"])
@@ -102,7 +105,13 @@ async def _registrar_ponto_impl(request, tipo, lat, lng, foto, colaborador):
         .execute()
     )
     ultimo_tipo = ultimo.data[0]["tipo"] if ultimo.data else None
-    seq_ok, motivo_seq = validar_sequencia(ultimo_tipo, tipo)
+
+    # Valida sequência conforme o dia (jornada normal ou dia extra)
+    dia_util = dia_util_para_colaborador(colaborador, hoje_br)
+    if dia_util:
+        seq_ok, motivo_seq = validar_sequencia(ultimo_tipo, tipo)
+    else:
+        seq_ok, motivo_seq = validar_sequencia_fora_jornada(ultimo_tipo, tipo)
 
     status_registro = "valido"
     motivo_rejeicao: str | None = None
@@ -169,11 +178,15 @@ async def _registrar_ponto_impl(request, tipo, lat, lng, foto, colaborador):
 
     jornada_hoje = None
     if status_registro == "valido" and tipo == "saida":
-        carga = parse_interval(
-            colaborador.get("carga_horaria_diaria")
-            or empresa.get("carga_horaria_diaria")
-            or "08:00:00"
-        )
+        # Dia fora da jornada → carga esperada = 0 (tudo vira banco de horas)
+        if not dia_util:
+            carga = timedelta(0)
+        else:
+            carga = parse_interval(
+                colaborador.get("carga_horaria_diaria")
+                or empresa.get("carga_horaria_diaria")
+                or "08:00:00"
+            )
         j = atualizar_jornada_dia(colaborador_id, empresa_id, hoje_br, carga)
         jornada_hoje = {
             "horas_trabalhadas": timedelta_para_interval(j["horas_trabalhadas"]),
@@ -214,9 +227,16 @@ async def status_ponto(colaborador: dict = Depends(get_colaborador_atual)):
         .execute()
     )
     ultimo_tipo = ultimo.data[0]["tipo"] if ultimo.data else None
+    dia_util = dia_util_para_colaborador(colaborador, hoje_br)
+    if dia_util:
+        proxima = proxima_batida_esperada(ultimo_tipo)
+    else:
+        from services.sequencia import proxima_batida_fora_jornada
+        proxima = proxima_batida_fora_jornada(ultimo_tipo)
     return {
         "ultima_batida": ultimo.data[0] if ultimo.data else None,
-        "proxima_batida": proxima_batida_esperada(ultimo_tipo),
+        "proxima_batida": proxima,
+        "dia_fora_jornada": not dia_util,
         "data_hoje_br": hoje_br.isoformat(),
     }
 

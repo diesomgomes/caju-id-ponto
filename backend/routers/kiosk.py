@@ -1,7 +1,7 @@
 import base64
 import logging
 import traceback
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException
@@ -11,7 +11,7 @@ from db.supabase_client import supabase as sb
 logger = logging.getLogger(__name__)
 from services.hash_chain import calcular_hash
 from services.jornada import atualizar_jornada_dia, parse_interval
-from services.sequencia import proxima_batida_esperada
+from services.sequencia import proxima_batida_esperada, proxima_batida_fora_jornada, dia_util_para_colaborador
 from services.storage import upload_selfie
 
 router = APIRouter(prefix="/kiosk", tags=["kiosk"])
@@ -143,7 +143,15 @@ async def kiosk_ponto(token: str, body: dict):
         .execute()
     )
     ultimo_tipo = ultimo.data[0]["tipo"] if ultimo.data else None
-    proximos = proxima_batida_esperada(ultimo_tipo)
+
+    # Verifica se hoje é dia de trabalho do colaborador
+    dia_util = dia_util_para_colaborador(colaborador, hoje_br)
+
+    if dia_util:
+        proximos = proxima_batida_esperada(ultimo_tipo)
+    else:
+        # Fora da jornada: só entrada → saída (sem almoço)
+        proximos = proxima_batida_fora_jornada(ultimo_tipo)
 
     if not proximos:
         raise HTTPException(400, "Jornada do dia já encerrada para este colaborador.")
@@ -202,15 +210,20 @@ async def kiosk_ponto(token: str, body: dict):
         logger.error(f"kiosk_ponto INSERT error: {traceback.format_exc()}")
         raise HTTPException(500, f"Erro ao registrar ponto: {str(e)}")
 
-    # Atualiza jornada diária ao registrar saída
+    # Atualiza jornada ao registrar qualquer saída
+    # - Dia fora da jornada: carga_esperada = 0 → 100% vai para banco de horas
+    # - Dia normal: carga_esperada = jornada do colaborador
     if tipo == "saida":
         try:
-            emp = sb.table("empresas").select("carga_horaria_diaria").eq("id", empresa_id).single().execute()
-            carga = parse_interval(
-                colaborador.get("carga_horaria_diaria")
-                or (emp.data or {}).get("carga_horaria_diaria")
-                or "08:00:00"
-            )
+            if not dia_util:
+                carga = timedelta(0)
+            else:
+                emp = sb.table("empresas").select("carga_horaria_diaria").eq("id", empresa_id).single().execute()
+                carga = parse_interval(
+                    colaborador.get("carga_horaria_diaria")
+                    or (emp.data or {}).get("carga_horaria_diaria")
+                    or "08:00:00"
+                )
             atualizar_jornada_dia(colaborador_id, empresa_id, hoje_br, carga)
         except Exception as e:
             logger.warning(f"kiosk_ponto: falha ao atualizar jornada: {e}")
