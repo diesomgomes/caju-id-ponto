@@ -363,50 +363,35 @@ export default function Kiosk({ token, onResetar }) {
         </div>
       )}
 
-      {/* Topo */}
+      {/* Topo — só logo + nome, sem botões de modo */}
       <div className={`absolute left-0 right-0 z-10 px-4 pb-10 ${offline ? 'top-7' : 'top-0'} pt-4`}
         style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, transparent 100%)' }}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 flex-1 min-w-0"
-            onMouseDown={iniciarLongPress} onMouseUp={cancelarLongPress}
-            onTouchStart={iniciarLongPress} onTouchEnd={cancelarLongPress}>
-            {info?.empresa?.logo_url
-              ? <img src={info.empresa.logo_url} alt="logo" className="w-9 h-9 rounded-xl object-contain flex-shrink-0"
-                  style={{ background: 'rgba(255,255,255,0.15)', padding: 4 }} />
-              : <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-black flex-shrink-0"
-                  style={{ background: accentColor }}>CJ</div>
-            }
-            <div className="min-w-0">
-              <p className="text-white text-sm font-bold leading-tight truncate">{info?.empresa?.nome}</p>
-              <p className="text-white/50 text-xs truncate">{info?.dispositivo?.nome}</p>
-            </div>
-          </div>
-          <div className="flex gap-1 bg-black/50 rounded-xl p-1 ml-3 flex-shrink-0">
-            <button onClick={() => { setModo('qr'); resetar() }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${modo === 'qr' ? 'bg-white text-gray-900 shadow' : 'text-white/60 hover:text-white/90'}`}>
-              QR Code
-            </button>
-            <button onClick={() => { setModo('cpf'); setMostrarCpf(true); resetar() }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${modo === 'cpf' ? 'bg-white text-gray-900 shadow' : 'text-white/60 hover:text-white/90'}`}>
-              CPF
-            </button>
+        <div className="flex items-center gap-2"
+          onMouseDown={iniciarLongPress} onMouseUp={cancelarLongPress}
+          onTouchStart={iniciarLongPress} onTouchEnd={cancelarLongPress}>
+          {info?.empresa?.logo_url
+            ? <img src={info.empresa.logo_url} alt="logo" className="w-9 h-9 rounded-xl object-contain flex-shrink-0"
+                style={{ background: 'rgba(255,255,255,0.15)', padding: 4 }} />
+            : <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-black flex-shrink-0"
+                style={{ background: accentColor }}>CJ</div>
+          }
+          <div className="min-w-0">
+            <p className="text-white text-sm font-bold leading-tight truncate">{info?.empresa?.nome}</p>
+            <p className="text-white/50 text-xs truncate">{info?.dispositivo?.nome}</p>
           </div>
         </div>
       </div>
 
+      {/* Guia central QR (só no modo qr em scan) */}
       {modo === 'qr' && fase === 'scan' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <div className="border-2 border-white/40 rounded-2xl w-52 h-52 relative">
-            <span className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-white rounded-tl-lg" />
-            <span className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-white rounded-tr-lg" />
-            <span className="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-white rounded-bl-lg" />
-            <span className="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-white rounded-br-lg" />
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style={{ paddingBottom: 120 }}>
+          <div className="border-2 border-white/40 rounded-2xl w-56 h-56 relative">
+            <span className="absolute -top-1 -left-1 w-7 h-7 border-t-4 border-l-4 border-white rounded-tl-lg" />
+            <span className="absolute -top-1 -right-1 w-7 h-7 border-t-4 border-r-4 border-white rounded-tr-lg" />
+            <span className="absolute -bottom-1 -left-1 w-7 h-7 border-b-4 border-l-4 border-white rounded-bl-lg" />
+            <span className="absolute -bottom-1 -right-1 w-7 h-7 border-b-4 border-r-4 border-white rounded-br-lg" />
           </div>
-          <p className="text-white/70 text-sm mt-4 font-medium">Aponte o QR Code do colaborador</p>
-          <button onClick={() => { setModo('cpf'); setMostrarCpf(true) }}
-            className="mt-3 text-white/50 text-xs underline pointer-events-auto">
-            Usar CPF em vez disso
-          </button>
+          <p className="text-white/70 text-sm mt-5 font-medium">Aponte o QR Code do colaborador</p>
         </div>
       )}
 
@@ -455,24 +440,56 @@ export default function Kiosk({ token, onResetar }) {
         </div>
       )}
 
+      {/* Painel CPF com teclado numérico customizado — sem teclado do sistema */}
       {mostrarCpf && fase === 'scan' && (
-        <div className="absolute bottom-0 left-0 right-0 z-20 bg-gray-950/95 backdrop-blur rounded-t-3xl p-6 pb-8">
-          <div className="w-10 h-1 bg-gray-700 rounded-full mx-auto mb-5" />
-          <p className="text-white font-bold text-center mb-4">Digite o CPF</p>
-          <input type="tel" inputMode="numeric" pattern="[0-9]*" value={fmtCpf(cpfInput)}
-            onChange={e => setCpfInput(e.target.value.replace(/\D/g, ''))}
-            onKeyDown={e => e.key === 'Enter' && buscarCpf()}
-            placeholder="000.000.000-00"
-            className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white text-center text-xl tracking-widest font-mono focus:outline-none focus:border-emerald-500 mb-2"
-            autoFocus />
-          {cpfErro && <p className="text-red-400 text-sm text-center mb-2">{cpfErro}</p>}
-          <div className="flex gap-3 mt-3">
-            <button onClick={() => { setMostrarCpf(false); setCpfInput(''); setCpfErro('') }}
-              className="flex-1 py-3 rounded-xl border border-gray-700 text-gray-400 text-sm font-semibold">
-              Cancelar
+        <div className="absolute bottom-0 left-0 right-0 z-20 bg-gray-950/97 backdrop-blur rounded-t-3xl pb-6">
+          {/* Handle */}
+          <div className="w-10 h-1 bg-gray-700 rounded-full mx-auto mt-4 mb-4" />
+
+          {/* Display CPF */}
+          <div className="px-6 mb-3">
+            <p className="text-white/50 text-xs text-center mb-1 font-medium tracking-widest uppercase">CPF</p>
+            <div className={`w-full rounded-2xl px-4 py-3 text-center font-mono text-3xl font-bold tracking-wider border-2 transition-colors ${
+              cpfErro ? 'border-red-500 text-red-300 bg-red-950/40' : 'border-gray-700 text-white bg-gray-900'
+            }`}>
+              {fmtCpf(cpfInput) || <span className="text-gray-600">000.000.000-00</span>}
+            </div>
+            {cpfErro && <p className="text-red-400 text-sm text-center mt-2">{cpfErro}</p>}
+          </div>
+
+          {/* Teclado numérico customizado */}
+          <div className="px-6 grid grid-cols-3 gap-3">
+            {[1,2,3,4,5,6,7,8,9].map(n => (
+              <button key={n}
+                onPointerDown={e => { e.preventDefault(); if (cpfInput.length < 11) { setCpfInput(p => p + n); setCpfErro('') } }}
+                className="h-14 rounded-2xl bg-gray-800 active:bg-gray-600 text-white text-2xl font-bold transition-colors select-none">
+                {n}
+              </button>
+            ))}
+            {/* Cancelar | 0 | Apagar */}
+            <button
+              onPointerDown={e => { e.preventDefault(); setMostrarCpf(false); setCpfInput(''); setCpfErro('') }}
+              className="h-14 rounded-2xl bg-gray-900 active:bg-gray-700 text-gray-400 text-sm font-semibold transition-colors select-none border border-gray-800">
+              ✕
             </button>
-            <button onClick={buscarCpf}
-              className="flex-1 py-3 rounded-xl text-white text-sm font-bold"
+            <button
+              onPointerDown={e => { e.preventDefault(); if (cpfInput.length < 11) { setCpfInput(p => p + '0'); setCpfErro('') } }}
+              className="h-14 rounded-2xl bg-gray-800 active:bg-gray-600 text-white text-2xl font-bold transition-colors select-none">
+              0
+            </button>
+            <button
+              onPointerDown={e => { e.preventDefault(); setCpfInput(p => p.slice(0, -1)); setCpfErro('') }}
+              className="h-14 rounded-2xl bg-gray-800 active:bg-gray-600 text-white text-2xl font-bold transition-colors select-none">
+              ⌫
+            </button>
+          </div>
+
+          {/* Confirmar */}
+          <div className="px-6 mt-3">
+            <button
+              onPointerDown={e => { e.preventDefault(); buscarCpf() }}
+              disabled={cpfInput.replace(/\D/g,'').length < 11}
+              className="w-full h-14 rounded-2xl text-white text-lg font-bold disabled:opacity-40 transition-opacity select-none"
               style={{ background: accentColor }}>
               Confirmar
             </button>
@@ -480,12 +497,39 @@ export default function Kiosk({ token, onResetar }) {
         </div>
       )}
 
-      {modo === 'cpf' && !mostrarCpf && fase === 'scan' && (
-        <div className="absolute bottom-8 left-0 right-0 flex justify-center z-10">
-          <button onClick={() => setMostrarCpf(true)}
-            className="bg-white/90 text-gray-900 px-8 py-3 rounded-full text-sm font-bold shadow-xl">
-            🔢 Digitar CPF
-          </button>
+      {/* Botões de modo — grandes, no rodapé, sempre visíveis em scan */}
+      {fase === 'scan' && !mostrarCpf && (
+        <div className="absolute bottom-0 left-0 right-0 z-10 p-4"
+          style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)' }}>
+          <div className="flex gap-3">
+            <button
+              onClick={() => { setModo('qr'); resetar() }}
+              className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl font-bold text-sm transition-all ${
+                modo === 'qr'
+                  ? 'bg-white text-gray-900 shadow-lg'
+                  : 'bg-white/15 text-white/70 hover:bg-white/25'
+              }`}>
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+                <rect x="3" y="14" width="7" height="7" rx="1"/>
+                <path d="M14 14h2v2h-2zM18 14h3v2h-3zM14 18h2v3h-2zM18 18h3v3h-3z"/>
+              </svg>
+              QR Code
+            </button>
+            <button
+              onClick={() => { setModo('cpf'); setMostrarCpf(true); setCpfInput(''); setCpfErro(''); resetar() }}
+              className={`flex-1 flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl font-bold text-sm transition-all ${
+                modo === 'cpf'
+                  ? 'bg-white text-gray-900 shadow-lg'
+                  : 'bg-white/15 text-white/70 hover:bg-white/25'
+              }`}>
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <rect x="5" y="2" width="14" height="20" rx="2"/>
+                <path d="M9 7h6M9 11h6M9 15h4"/>
+              </svg>
+              Digitar CPF
+            </button>
+          </div>
         </div>
       )}
 
