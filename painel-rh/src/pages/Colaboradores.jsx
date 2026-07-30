@@ -425,9 +425,9 @@ function ModalAjusteBanco({ colaborador: colaboradorInicial, onFechar }) {
         </div>
 
         {/* Toggle bloqueio */}
-        <div className={`flex items-center justify-between rounded-lg px-4 py-3 border ${bloqueado ? 'bg-red-900/20 border-red-800/50' : 'bg-gray-800/50 border-gray-700/50'}`}>
+        <div className={`flex items-center justify-between rounded-lg px-4 py-3 border ${bloqueado ? 'bg-red-900/20 border-red-800/50' : 'bg-emerald-900/20 border-emerald-800/50'}`}>
           <div>
-            <p className={`text-sm font-semibold ${bloqueado ? 'text-red-400' : 'text-gray-300'}`}>
+            <p className={`text-sm font-semibold ${bloqueado ? 'text-red-400' : 'text-emerald-400'}`}>
               {bloqueado ? '🔒 Banco de horas bloqueado' : '🔓 Banco de horas ativo'}
             </p>
             <p className="text-xs text-gray-500 mt-0.5">
@@ -437,9 +437,9 @@ function ModalAjusteBanco({ colaborador: colaboradorInicial, onFechar }) {
           <button
             onClick={toggleBloqueio}
             disabled={salvandoBloqueio}
-            className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50 ${bloqueado ? 'bg-red-600' : 'bg-gray-600'}`}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50 ${bloqueado ? 'bg-red-600' : 'bg-emerald-500'}`}
           >
-            <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${bloqueado ? 'translate-x-6' : 'translate-x-1'}`} />
+            <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${bloqueado ? 'translate-x-1' : 'translate-x-6'}`} />
           </button>
         </div>
 
