@@ -16,13 +16,14 @@ function fmtCpf(v) {
 }
 
 export default function Kiosk({ token, onResetar }) {
-  const [branding, setBranding]   = useState(null)
-  const [info, setInfo]           = useState(null)
-  const [erroGlobal, setErroGlobal] = useState('')
+  const [branding, setBranding]     = useState(null)
+  const [info, setInfo]             = useState(null)
+  const [offline, setOffline]       = useState(false)  // banner vermelho
+  const [cameraErro, setCameraErro] = useState('')     // erro permanente de câmera
 
-  const [pinInput, setPinInput]   = useState('')
-  const [pinErro, setPinErro]     = useState('')
-  const [pinOk, setPinOk]         = useState(false)
+  const [pinInput, setPinInput]     = useState('')
+  const [pinErro, setPinErro]       = useState('')
+  const [pinOk, setPinOk]           = useState(false)
   const [autenticando, setAutenticando] = useState(false)
 
   const [modo, setModo]           = useState('qr')
@@ -33,61 +34,145 @@ export default function Kiosk({ token, onResetar }) {
   const [cpfInput, setCpfInput]   = useState('')
   const [cpfErro, setCpfErro]     = useState('')
   const [mostrarCpf, setMostrarCpf] = useState(false)
-
-  // Toque longo no logo para resetar dispositivo (5 seg)
   const [mostrarReset, setMostrarReset] = useState(false)
-  const longPressRef = useRef(null)
 
+  const longPressRef = useRef(null)
   const videoRef  = useRef()
   const canvasRef = useRef()
   const streamRef = useRef()
   const rafRef    = useRef()
   const faseRef   = useRef(fase)
   const pinRef    = useRef('')
+  const infoRef   = useRef(info)
   faseRef.current = fase
+  infoRef.current = info
 
   const accentColor = branding?.cor_fundo || '#059669'
 
-  // ── Carregar branding + auto-login com PIN salvo ───────────────────────────
-  useEffect(() => {
-    const pinSalvo = localStorage.getItem(`kiosk_pin_${token}`) || ''
-    fetch(`${API_URL}/kiosk/${token}/branding`)
-      .then(r => { if (!r.ok) throw new Error('Dispositivo inválido'); return r.json() })
-      .then(b => {
-        setBranding(b)
-        if (!b.tem_senha) autenticar('')
-        else if (pinSalvo) autenticar(pinSalvo)
+  // ── Câmera: inicia uma vez, nunca para por rede ─────────────────────────────
+  const iniciarCamera = useCallback(async () => {
+    if (streamRef.current) return // já está rodando
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false,
       })
-      .catch(e => setErroGlobal(e.message))
-  }, [token])
+      streamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        await videoRef.current.play()
+      }
+    } catch (e) {
+      setCameraErro('Câmera indisponível: ' + e.message)
+    }
+  }, [])
 
-  // ── Atualização silenciosa a cada 30s ─────────────────────────────────────
   useEffect(() => {
     if (!pinOk) return
-    const intervalo = setInterval(async () => {
-      if (faseRef.current !== 'scan') return
-      try {
-        const res = await fetch(`${API_URL}/kiosk/${token}/auth`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ senha: pinRef.current }),
-        })
-        if (res.ok) { const data = await res.json(); setInfo(data) }
-      } catch (_) {}
-    }, 30000)
-    return () => clearInterval(intervalo)
-  }, [pinOk, token])
+    iniciarCamera()
+    return () => {
+      cancelAnimationFrame(rafRef.current)
+      streamRef.current?.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+    }
+  }, [pinOk, iniciarCamera])
 
-  // ── Reload periódico configurável ─────────────────────────────────────────
+  // ── Buscar branding com retry infinito (não bloqueia câmera) ───────────────
+  const buscarBranding = useCallback(async () => {
+    try {
+      const r = await fetch(`${API_URL}/kiosk/${token}/branding`, { signal: AbortSignal.timeout(8000) })
+      if (!r.ok) throw new Error('status ' + r.status)
+      const b = await r.json()
+      setBranding(b)
+      setOffline(false)
+      return b
+    } catch {
+      setOffline(true)
+      return null
+    }
+  }, [token])
+
+  // Atualização silenciosa dos dados (lista de colaboradores etc.) sem reload
+  const atualizarInfo = useCallback(async () => {
+    const senha = pinRef.current
+    try {
+      const res = await fetch(`${API_URL}/kiosk/${token}/auth`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ senha }),
+        signal: AbortSignal.timeout(8000),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setInfo(data)
+        setOffline(false)
+      } else {
+        setOffline(true)
+      }
+    } catch {
+      setOffline(true)
+    }
+  }, [token])
+
+  // ── Inicialização: branding + auto-login ───────────────────────────────────
   useEffect(() => {
-    if (!pinOk || !branding) return
-    const mins = branding.intervalo_refresh
-    if (!mins || mins <= 0) return
-    const timer = setTimeout(() => {
-      if (faseRef.current !== 'scan') return
-      window.location.reload()
-    }, mins * 60 * 1000)
-    return () => clearTimeout(timer)
-  }, [pinOk, branding])
+    const pinSalvo = localStorage.getItem(`kiosk_pin_${token}`) || ''
+    let cancelado = false
+
+    async function iniciar() {
+      let b = null
+      while (!b && !cancelado) {
+        b = await buscarBranding()
+        if (!b) {
+          setOffline(true)
+          await new Promise(r => setTimeout(r, 10000))
+        }
+      }
+      if (cancelado || !b) return
+      if (!b.tem_senha) autenticar('')
+      else if (pinSalvo) autenticar(pinSalvo)
+    }
+
+    iniciar()
+    return () => { cancelado = true }
+  }, [token, buscarBranding])
+
+  // ── Retry loop quando offline ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!offline) return
+    const id = setInterval(async () => {
+      if (pinOk) await atualizarInfo()
+      else {
+        const b = await buscarBranding()
+        if (b && !pinOk) {
+          const pinSalvo = localStorage.getItem(`kiosk_pin_${token}`) || ''
+          if (!b.tem_senha) autenticar('')
+          else if (pinSalvo) autenticar(pinSalvo)
+        }
+      }
+    }, 10000)
+    return () => clearInterval(id)
+  }, [offline, pinOk, buscarBranding, atualizarInfo, token])
+
+  // ── Atualização silenciosa periódica (substitui window.location.reload) ────
+  useEffect(() => {
+    if (!pinOk) return
+    // Atualiza lista de colaboradores a cada 30s
+    const idInfo = setInterval(atualizarInfo, 30000)
+    // Re-busca branding a cada hora
+    const idBranding = setInterval(buscarBranding, 3600000)
+    return () => { clearInterval(idInfo); clearInterval(idBranding) }
+  }, [pinOk, atualizarInfo, buscarBranding])
+
+  // ── Detectar online/offline do dispositivo ─────────────────────────────────
+  useEffect(() => {
+    const goOffline = () => setOffline(true)
+    const goOnline  = () => { if (pinOk) atualizarInfo(); else buscarBranding() }
+    window.addEventListener('offline', goOffline)
+    window.addEventListener('online', goOnline)
+    return () => {
+      window.removeEventListener('offline', goOffline)
+      window.removeEventListener('online', goOnline)
+    }
+  }, [pinOk, atualizarInfo, buscarBranding])
 
   async function autenticar(senha) {
     setAutenticando(true); setPinErro('')
@@ -95,37 +180,22 @@ export default function Kiosk({ token, onResetar }) {
       const res = await fetch(`${API_URL}/kiosk/${token}/auth`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ senha }),
+        signal: AbortSignal.timeout(10000),
       })
       if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Senha incorreta') }
       const data = await res.json()
       setInfo(data); setPinOk(true); pinRef.current = senha
+      setOffline(false)
       localStorage.setItem(`kiosk_pin_${token}`, senha)
-    } catch (e) { setPinErro(e.message) }
-    finally { setAutenticando(false) }
+    } catch (e) {
+      if (e.name === 'TimeoutError' || e.message?.includes('fetch')) {
+        setOffline(true)
+        // Mantém pinOk se já estava autenticado
+      } else {
+        setPinErro(e.message)
+      }
+    } finally { setAutenticando(false) }
   }
-
-  // ── Câmera ─────────────────────────────────────────────────────────────────
-  const pararCamera = useCallback(() => {
-    cancelAnimationFrame(rafRef.current)
-    streamRef.current?.getTracks().forEach(t => t.stop())
-    streamRef.current = null
-  }, [])
-
-  const iniciarCamera = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false,
-      })
-      streamRef.current = stream
-      if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play() }
-    } catch (e) { setErroGlobal('Câmera indisponível: ' + e.message) }
-  }, [])
-
-  useEffect(() => {
-    if (!pinOk) return
-    iniciarCamera()
-    return pararCamera
-  }, [pinOk, iniciarCamera, pararCamera])
 
   // ── Loop QR ────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -138,7 +208,7 @@ export default function Kiosk({ token, onResetar }) {
         const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height)
         const qr = jsQR(imgData.data, imgData.width, imgData.height)
         if (qr?.data) {
-          const found = info?.colaboradores?.find(c => c.id === qr.data)
+          const found = infoRef.current?.colaboradores?.find(c => c.id === qr.data)
           if (found) { setColaborador(found); setContagem(3); setFase('contagem') }
         }
       }
@@ -146,9 +216,9 @@ export default function Kiosk({ token, onResetar }) {
     }
     rafRef.current = requestAnimationFrame(scan)
     return () => cancelAnimationFrame(rafRef.current)
-  }, [pinOk, modo, info])
+  }, [pinOk, modo])
 
-  // ── Contagem ───────────────────────────────────────────────────────────────
+  // ── Contagem regressiva ────────────────────────────────────────────────────
   useEffect(() => {
     if (fase !== 'contagem') return
     if (contagem === 0) { capturarEEnviar(); return }
@@ -168,11 +238,17 @@ export default function Kiosk({ token, onResetar }) {
       const res = await fetch(`${API_URL}/kiosk/${token}/ponto`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ colaborador_id: c.id, foto }),
+        signal: AbortSignal.timeout(15000),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || 'Erro ao registrar')
       setResultado(data); setFase('ok')
-    } catch (e) { setResultado({ erro: e.message }); setFase('erro') }
+      setOffline(false)
+    } catch (e) {
+      setResultado({ erro: e.name === 'TimeoutError' ? 'Sem conexão — tente novamente' : e.message })
+      setFase('erro')
+      if (e.name === 'TimeoutError' || e.message?.includes('fetch')) setOffline(true)
+    }
     setTimeout(resetar, 5000)
   }
 
@@ -184,35 +260,26 @@ export default function Kiosk({ token, onResetar }) {
   function buscarCpf() {
     const limpo = cpfInput.replace(/\D/g, '')
     if (limpo.length < 11) return setCpfErro('CPF incompleto (11 dígitos).')
-    const found = info?.colaboradores?.find(c => (c.cpf || '').replace(/\D/g, '') === limpo)
+    const found = infoRef.current?.colaboradores?.find(c => (c.cpf || '').replace(/\D/g, '') === limpo)
     if (!found) return setCpfErro(`CPF ${fmtCpf(limpo)} não encontrado.`)
     setCpfErro(''); setColaborador(found); setContagem(3); setFase('contagem'); setMostrarCpf(false)
   }
 
-  // ── Toque longo para configurações (5s no logo) ────────────────────────────
-  function iniciarLongPress() {
-    longPressRef.current = setTimeout(() => setMostrarReset(true), 5000)
-  }
-  function cancelarLongPress() {
-    clearTimeout(longPressRef.current)
-  }
+  function iniciarLongPress() { longPressRef.current = setTimeout(() => setMostrarReset(true), 5000) }
+  function cancelarLongPress() { clearTimeout(longPressRef.current) }
 
-  // ── Renders ────────────────────────────────────────────────────────────────
-  if (erroGlobal) return (
-    <div className="h-screen bg-gray-950 flex flex-col items-center justify-center p-8 gap-4 text-center">
-      <div className="text-5xl">⚠️</div>
-      <p className="text-white text-lg font-semibold">Erro no dispositivo</p>
-      <p className="text-gray-400 text-sm">{erroGlobal}</p>
-      <button onClick={onResetar}
-        className="mt-4 bg-red-700 hover:bg-red-600 text-white px-6 py-3 rounded-xl text-sm font-semibold">
-        Reconfigurar dispositivo
-      </button>
+  // ── Estados de carregamento inicial ───────────────────────────────────────
+  if (!branding && !offline) return (
+    <div className="h-screen bg-gray-950 flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
     </div>
   )
 
-  if (!branding) return (
-    <div className="h-screen bg-gray-950 flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+  if (!branding && offline) return (
+    <div className="h-screen bg-gray-950 flex flex-col items-center justify-center p-8 gap-4 text-center">
+      <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+      <p className="text-red-400 font-semibold">Sem conexão</p>
+      <p className="text-gray-500 text-sm">Tentando conectar ao servidor…</p>
     </div>
   )
 
@@ -253,7 +320,6 @@ export default function Kiosk({ token, onResetar }) {
         </button>
       </div>
 
-      {/* Modal de reset */}
       {mostrarReset && (
         <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-50 p-6">
           <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm space-y-4">
@@ -277,14 +343,30 @@ export default function Kiosk({ token, onResetar }) {
 
   return (
     <div className="fixed inset-0 bg-black overflow-hidden" style={{ touchAction: 'none' }}>
-      <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} muted playsInline autoPlay />
+      <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover"
+        style={{ transform: 'scaleX(-1)' }} muted playsInline autoPlay />
       <canvas ref={canvasRef} className="hidden" />
 
+      {/* Banner offline — sempre visível no topo, não bloqueia câmera */}
+      {offline && (
+        <div className="absolute top-0 left-0 right-0 z-50 bg-red-600 flex items-center justify-center gap-2 py-1.5 px-4">
+          <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin flex-shrink-0" />
+          <p className="text-white text-xs font-semibold tracking-wide">Tentando conexão com o servidor…</p>
+        </div>
+      )}
+
+      {/* Erro permanente de câmera */}
+      {cameraErro && (
+        <div className="absolute inset-0 bg-gray-950 flex flex-col items-center justify-center z-30 p-8 text-center">
+          <p className="text-red-400 font-semibold mb-2">Câmera indisponível</p>
+          <p className="text-gray-500 text-sm">{cameraErro}</p>
+        </div>
+      )}
+
       {/* Topo */}
-      <div className="absolute top-0 left-0 right-0 z-10 px-4 pt-4 pb-10"
+      <div className={`absolute left-0 right-0 z-10 px-4 pb-10 ${offline ? 'top-7' : 'top-0'} pt-4`}
         style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, transparent 100%)' }}>
         <div className="flex items-center justify-between">
-          {/* Logo + nome */}
           <div className="flex items-center gap-2 flex-1 min-w-0"
             onMouseDown={iniciarLongPress} onMouseUp={cancelarLongPress}
             onTouchStart={iniciarLongPress} onTouchEnd={cancelarLongPress}>
@@ -299,7 +381,6 @@ export default function Kiosk({ token, onResetar }) {
               <p className="text-white/50 text-xs truncate">{info?.dispositivo?.nome}</p>
             </div>
           </div>
-          {/* Seletor de modo */}
           <div className="flex gap-1 bg-black/50 rounded-xl p-1 ml-3 flex-shrink-0">
             <button onClick={() => { setModo('qr'); resetar() }}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${modo === 'qr' ? 'bg-white text-gray-900 shadow' : 'text-white/60 hover:text-white/90'}`}>
@@ -408,7 +489,6 @@ export default function Kiosk({ token, onResetar }) {
         </div>
       )}
 
-      {/* Modal de reset (toque longo no logo) */}
       {mostrarReset && (
         <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-50 p-6">
           <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm space-y-4">
