@@ -1310,3 +1310,59 @@ async def criar_dispositivo(body: dict, rh=Depends(get_usuario_rh_atual)):
 async def excluir_dispositivo(disp_id: str, rh=Depends(get_usuario_rh_atual)):
     sb.table("dispositivos_ponto").update({"ativo": False}).eq("id", disp_id).execute()
     return {"ok": True}
+
+
+# ── Download / Upload do APK do Kiosk ─────────────────────────────────────────
+
+import os, zipfile, tempfile
+from fastapi import UploadFile
+
+APK_PATH = os.environ.get("KIOSK_APK_PATH", "/app/downloads/caju-kiosk.apk")
+
+
+@router.get("/kiosk-apk/info")
+async def kiosk_apk_info(rh=Depends(get_usuario_rh_atual)):
+    """Retorna metadados do APK disponível para download."""
+    if not os.path.exists(APK_PATH):
+        return {"disponivel": False}
+    stat = os.stat(APK_PATH)
+    return {
+        "disponivel": True,
+        "tamanho_mb": round(stat.st_size / 1024 / 1024, 1),
+        "atualizado_em": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+    }
+
+
+@router.get("/kiosk-apk/download")
+async def download_kiosk_apk(rh=Depends(get_usuario_rh_atual)):
+    """Serve o APK do kiosk compactado em zip."""
+    if not os.path.exists(APK_PATH):
+        raise HTTPException(404, "APK não disponível. Faça upload de uma versão primeiro.")
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.write(APK_PATH, "caju-kiosk.apk")
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="caju-kiosk.zip"'},
+    )
+
+
+@router.post("/kiosk-apk/upload")
+async def upload_kiosk_apk(file: UploadFile, rh=Depends(get_usuario_rh_atual)):
+    """Recebe e armazena nova versão do APK do kiosk."""
+    if not file.filename.endswith(".apk"):
+        raise HTTPException(400, "Envie um arquivo .apk")
+    os.makedirs(os.path.dirname(APK_PATH), exist_ok=True)
+    conteudo = await file.read()
+    with open(APK_PATH, "wb") as f:
+        f.write(conteudo)
+    stat = os.stat(APK_PATH)
+    return {
+        "ok": True,
+        "tamanho_mb": round(stat.st_size / 1024 / 1024, 1),
+        "atualizado_em": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+    }

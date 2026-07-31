@@ -157,6 +157,36 @@ export const criarFeriado = (body) => api('/rh/feriados', { method: 'POST', body
 export const excluirFeriado = (id) => api(`/rh/feriados/${id}`, { method: 'DELETE' })
 export const sincronizarFeriados = (ano) => api(`/rh/feriados/sincronizar?ano=${ano}`, { method: 'POST' })
 export const getCalendario = (colaborador_id, mes) => api(`/rh/calendario?colaborador_id=${colaborador_id}&mes=${mes}`)
+export const getKioskApkInfo = () => api('/rh/kiosk-apk/info')
+
+export async function downloadKioskApk() {
+  const token = getToken()
+  const base = window.__API_URL__ || 'https://caju-id-ponto-production.up.railway.app'
+  const res = await fetch(`${base}/rh/kiosk-apk/download`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error('APK não disponível')
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = 'caju-kiosk.zip'; a.click()
+  URL.revokeObjectURL(url)
+}
+
+export async function uploadKioskApk(file) {
+  const token = getToken()
+  const base = window.__API_URL__ || 'https://caju-id-ponto-production.up.railway.app'
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch(`${base}/rh/kiosk-apk/upload`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  })
+  if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Erro no upload') }
+  return res.json()
+}
+
 export const getRelatorio  = (mes, colaborador_id) => {
   const q = colaborador_id ? `&colaborador_id=${colaborador_id}` : ''
   return api(`/rh/relatorio?mes=${mes}${q}`)

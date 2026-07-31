@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { getDispositivos, criarDispositivo, excluirDispositivo, getColaboradores } from '../api'
+import { useEffect, useRef, useState } from 'react'
+import { getDispositivos, criarDispositivo, excluirDispositivo, getColaboradores, getKioskApkInfo, downloadKioskApk, uploadKioskApk } from '../api'
 import { IconExcluir } from '../components/IconBtn'
 import Portal from '../components/Portal'
 
@@ -68,6 +68,11 @@ export default function Dispositivos() {
   const [senhaCopiada, setSenhaCopiada] = useState('')
   const [intervaloRefresh, setIntervaloRefresh] = useState('2')
 
+  const [apkInfo, setApkInfo]         = useState(null)
+  const [uploadando, setUploadando]   = useState(false)
+  const [msgApk, setMsgApk]           = useState('')
+  const fileInputRef                  = useRef()
+
   async function carregar() {
     setLoading(true)
     try {
@@ -77,7 +82,10 @@ export default function Dispositivos() {
     } catch (e) { console.error(e) } finally { setLoading(false) }
   }
 
-  useEffect(() => { carregar() }, [])
+  useEffect(() => {
+    carregar()
+    getKioskApkInfo().then(setApkInfo).catch(() => {})
+  }, [])
 
   function capturarGps() {
     if (!navigator.geolocation) return setErro('Geolocalização não disponível neste browser.')
@@ -129,11 +137,77 @@ export default function Dispositivos() {
     })
   }
 
+  async function handleUploadApk(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadando(true); setMsgApk('')
+    try {
+      const info = await uploadKioskApk(file)
+      setApkInfo({ disponivel: true, ...info })
+      setMsgApk(`APK atualizado com sucesso! (${info.tamanho_mb} MB)`)
+    } catch (err) {
+      setMsgApk('Erro no upload: ' + err.message)
+    } finally {
+      setUploadando(false)
+      e.target.value = ''
+    }
+  }
+
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
         <h1 className="text-2xl font-bold text-gray-100">Cadastro de Dispositivos</h1>
         <p className="text-sm text-gray-400 mt-1">Crie pontos fixos de registro com link único por dispositivo.</p>
+      </div>
+
+      {/* Card APK Kiosk */}
+      <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-900/50 border border-emerald-800/50 flex items-center justify-center text-emerald-400">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z"/>
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-200">APK do Kiosk</p>
+              {apkInfo?.disponivel
+                ? <p className="text-xs text-gray-500 mt-0.5">{apkInfo.tamanho_mb} MB · atualizado {new Date(apkInfo.atualizado_em).toLocaleDateString('pt-BR')}</p>
+                : <p className="text-xs text-yellow-500 mt-0.5">Nenhuma versão disponível — faça upload abaixo</p>
+              }
+            </div>
+          </div>
+
+          <div className="flex gap-2 flex-wrap">
+            {apkInfo?.disponivel && (
+              <button
+                onClick={downloadKioskApk}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-semibold transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                Baixar .zip
+              </button>
+            )}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadando}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-gray-200 text-sm font-semibold transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12"/>
+              </svg>
+              {uploadando ? 'Enviando…' : 'Atualizar APK'}
+            </button>
+            <input ref={fileInputRef} type="file" accept=".apk" className="hidden" onChange={handleUploadApk} />
+          </div>
+        </div>
+        {msgApk && (
+          <p className={`text-xs mt-3 font-medium ${msgApk.startsWith('Erro') ? 'text-red-400' : 'text-emerald-400'}`}>
+            {msgApk}
+          </p>
+        )}
       </div>
 
       {/* Novo dispositivo */}
