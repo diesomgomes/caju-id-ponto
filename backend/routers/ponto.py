@@ -47,16 +47,22 @@ def _criar_ajuste_automatico_banco(
             return
 
         mj = supabase.table("modelos_jornada").select(
-            "hora_entrada, hora_saida, tolerancia_entrada_minutos, tolerancia_saida_minutos"
+            "hora_entrada, hora_saida, tolerancia_entrada_minutos, tolerancia_saida_minutos, horarios_por_dia"
         ).eq("id", modelo_id).single().execute().data
         if not mj:
             return
 
+        # Horário personalizado por dia sobrescreve o padrão
+        _DIAS_KEY = {0: "seg", 1: "ter", 2: "qua", 3: "qui", 4: "sex", 5: "sab", 6: "dom"}
+        dia_key = _DIAS_KEY.get(hoje_br.weekday(), "")
+        horarios_por_dia = mj.get("horarios_por_dia") or {}
+        h_dia = horarios_por_dia.get(dia_key, {}) or {}
+
         if tipo == "entrada":
-            hora_esp_str = mj.get("hora_entrada")
+            hora_esp_str = h_dia.get("hora_entrada") or mj.get("hora_entrada")
             tolerancia = int(mj.get("tolerancia_entrada_minutos") or 5)
         else:  # saida
-            hora_esp_str = mj.get("hora_saida")
+            hora_esp_str = h_dia.get("hora_saida") or mj.get("hora_saida")
             tolerancia = int(mj.get("tolerancia_saida_minutos") or 5)
 
         if not hora_esp_str:

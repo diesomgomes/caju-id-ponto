@@ -1311,24 +1311,23 @@ async def backfill_banco_horas(rh=Depends(get_usuario_rh_atual)):
     # Carrega todos os modelos de jornada referenciados
     modelo_ids = list({c["modelo_jornada_id"] for c in colabs.values()})
     modelos_res = sb.table("modelos_jornada") \
-        .select("id, hora_entrada, hora_saida, tolerancia_entrada_minutos, tolerancia_saida_minutos") \
+        .select("id, hora_entrada, hora_saida, tolerancia_entrada_minutos, tolerancia_saida_minutos, horarios_por_dia") \
         .in_("id", modelo_ids) \
         .execute()
     modelos = {m["id"]: m for m in (modelos_res.data or [])}
 
-    # Carrega ajustes existentes para deduplicação
-    # Tenta filtrar por origem='automatico' — se a coluna não existir, carrega tudo
-    existentes = set()
+    _DIAS_KEY = {0: "seg", 1: "ter", 2: "qua", 3: "qui", 4: "sex", 5: "sab", 6: "dom"}
+
+    # Remove todos os ajustes automáticos existentes para reprocessar do zero
+    # Garante idempotência e corrige entradas incorretas de execuções anteriores
+    removidos = 0
     try:
-        existentes_res = sb.table("ajustes_banco_horas") \
-            .select("colaborador_id, data_referencia, tipo_referencia") \
-            .eq("origem", "automatico") \
-            .execute()
-        for e in (existentes_res.data or []):
-            if e.get("data_referencia") and e.get("tipo_referencia"):
-                existentes.add((e["colaborador_id"], e["data_referencia"], e["tipo_referencia"]))
+        sb.table("ajustes_banco_horas").delete().eq("origem", "automatico").execute()
+        removidos = 1  # sucesso (não temos contagem exata do SDK, mas não falhou)
     except Exception:
-        pass  # coluna origem ainda não existe — seguro continuar (inserts vão falhar se dupl.)
+        pass  # coluna ainda não existe — ok, prossegue
+
+    existentes = set()  # zerado pois apagamos tudo acima
 
     # Carrega todos os registros válidos de entrada/saída
     regs_res = sb.table("registros_ponto") \
@@ -1356,15 +1355,6 @@ async def backfill_banco_horas(rh=Depends(get_usuario_rh_atual)):
             continue
 
         tipo = reg["tipo"]
-        if tipo == "entrada":
-            hora_esp_str = mj.get("hora_entrada")
-            tolerancia = int(mj.get("tolerancia_entrada_minutos") or 5)
-        else:
-            hora_esp_str = mj.get("hora_saida")
-            tolerancia = int(mj.get("tolerancia_saida_minutos") or 5)
-
-        if not hora_esp_str:
-            continue
 
         processados += 1
 
@@ -1374,6 +1364,22 @@ async def backfill_banco_horas(rh=Depends(get_usuario_rh_atual)):
             ts_br = ts_utc.astimezone(TZ_BR)
             hoje_br = ts_br.date()
             data_iso = hoje_br.isoformat()
+
+            # Horário personalizado por dia sobrescreve o padrão
+            dia_key = _DIAS_KEY.get(hoje_br.weekday(), "")
+            horarios_por_dia = mj.get("horarios_por_dia") or {}
+            h_dia = horarios_por_dia.get(dia_key, {}) or {}
+
+            if tipo == "entrada":
+                hora_esp_str = h_dia.get("hora_entrada") or mj.get("hora_entrada")
+                tolerancia = int(mj.get("tolerancia_entrada_minutos") or 5)
+            else:
+                hora_esp_str = h_dia.get("hora_saida") or mj.get("hora_saida")
+                tolerancia = int(mj.get("tolerancia_saida_minutos") or 5)
+
+            if not hora_esp_str:
+                processados -= 1
+                continue
 
             # Chave de deduplicação
             chave = (colab_id, data_iso, tipo)
