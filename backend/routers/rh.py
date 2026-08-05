@@ -1444,6 +1444,14 @@ async def listar_atestados(
 @router.delete("/atestados/{atestado_id}")
 async def excluir_atestado(atestado_id: str, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
+    # Busca arquivo_url antes de deletar o registro
+    res = sb.table("atestados").select("arquivo_url").eq("id", atestado_id).in_("empresa_id", ids).limit(1).execute()
+    if res.data and res.data[0].get("arquivo_url"):
+        try:
+            from services.storage import BUCKET_ATESTADOS
+            sb.storage.from_(BUCKET_ATESTADOS).remove([res.data[0]["arquivo_url"]])
+        except Exception:
+            pass  # não bloqueia a exclusão se falhar
     sb.table("atestados").delete().eq("id", atestado_id).in_("empresa_id", ids).execute()
     return {"ok": True}
 
