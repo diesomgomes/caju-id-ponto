@@ -187,6 +187,8 @@ export async function uploadKioskApk(file) {
   return res.json()
 }
 
+export const backfillBancoHoras = () => api('/rh/banco-horas/backfill', { method: 'POST' })
+
 export const getAtestados = (params = {}) => {
   const qs = new URLSearchParams(params).toString()
   return api(`/rh/atestados${qs ? '?' + qs : ''}`)

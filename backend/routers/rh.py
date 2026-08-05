@@ -1282,6 +1282,146 @@ async def excluir_ajuste_banco(ajuste_id: str, rh=Depends(get_usuario_rh_atual))
     return {"ok": True}
 
 
+# ── Backfill banco de horas ───────────────────────────────────────────────────
+
+@router.post("/banco-horas/backfill")
+async def backfill_banco_horas(rh=Depends(get_usuario_rh_atual)):
+    """
+    Processa todos os registros históricos de entrada/saída e cria os ajustes
+    automáticos de banco de horas que ainda não existem.
+    Apenas administradores podem executar. Rode uma única vez.
+    """
+    if rh.get("papel") != "admin":
+        raise HTTPException(403, "Apenas administradores podem executar o backfill.")
+
+    from zoneinfo import ZoneInfo
+    TZ_BR = ZoneInfo("America/Sao_Paulo")
+
+    # Carrega todos os colaboradores com modelo_jornada
+    colabs_res = sb.table("colaboradores") \
+        .select("id, empresa_id, modelo_jornada_id") \
+        .eq("ativo", True) \
+        .not_.is_("modelo_jornada_id", "null") \
+        .execute()
+    colabs = {c["id"]: c for c in (colabs_res.data or [])}
+
+    if not colabs:
+        return {"ok": True, "processados": 0, "criados": 0, "detalhes": "Nenhum colaborador com jornada configurada."}
+
+    # Carrega todos os modelos de jornada referenciados
+    modelo_ids = list({c["modelo_jornada_id"] for c in colabs.values()})
+    modelos_res = sb.table("modelos_jornada") \
+        .select("id, hora_entrada, hora_saida, tolerancia_entrada_minutos, tolerancia_saida_minutos") \
+        .in_("id", modelo_ids) \
+        .execute()
+    modelos = {m["id"]: m for m in (modelos_res.data or [])}
+
+    # Carrega todos os ajustes automáticos já existentes (para evitar duplicatas)
+    existentes_res = sb.table("ajustes_banco_horas") \
+        .select("colaborador_id, data_referencia, tipo_referencia") \
+        .eq("origem", "automatico") \
+        .execute()
+    existentes = set()
+    for e in (existentes_res.data or []):
+        existentes.add((e["colaborador_id"], e["data_referencia"], e["tipo_referencia"]))
+
+    # Carrega todos os registros válidos de entrada/saída
+    regs_res = sb.table("registros_ponto") \
+        .select("id, colaborador_id, empresa_id, tipo, registrado_em") \
+        .in_("tipo", ["entrada", "saida"]) \
+        .eq("status", "valido") \
+        .order("registrado_em") \
+        .execute()
+    registros = regs_res.data or []
+
+    criados = 0
+    processados = 0
+    erros = []
+
+    from datetime import time as dtime
+
+    for reg in registros:
+        colab_id = reg["colaborador_id"]
+        colab = colabs.get(colab_id)
+        if not colab:
+            continue  # sem jornada configurada
+
+        mj = modelos.get(colab.get("modelo_jornada_id"))
+        if not mj:
+            continue
+
+        tipo = reg["tipo"]
+        if tipo == "entrada":
+            hora_esp_str = mj.get("hora_entrada")
+            tolerancia = int(mj.get("tolerancia_entrada_minutos") or 5)
+        else:
+            hora_esp_str = mj.get("hora_saida")
+            tolerancia = int(mj.get("tolerancia_saida_minutos") or 5)
+
+        if not hora_esp_str:
+            continue
+
+        processados += 1
+
+        try:
+            # Converte o timestamp UTC para horário BR
+            ts_utc = datetime.fromisoformat(reg["registrado_em"].replace("Z", "+00:00"))
+            ts_br = ts_utc.astimezone(TZ_BR)
+            hoje_br = ts_br.date()
+            data_iso = hoje_br.isoformat()
+
+            # Chave de deduplicação
+            chave = (colab_id, data_iso, tipo)
+            if chave in existentes:
+                continue
+
+            # Horário previsto
+            h, m, *_ = hora_esp_str.split(":")
+            hora_esp = datetime.combine(hoje_br, dtime(int(h), int(m)), tzinfo=TZ_BR)
+
+            ts_br_sem_seg = ts_br.replace(second=0, microsecond=0)
+            diff_minutos = round((ts_br_sem_seg - hora_esp).total_seconds() / 60)
+
+            if abs(diff_minutos) <= tolerancia:
+                continue  # dentro da tolerância
+
+            if tipo == "entrada":
+                minutos_ajuste = -diff_minutos
+                if diff_minutos > 0:
+                    descricao = f"Entrada atrasada {abs(diff_minutos)} min (previsto {hora_esp_str[:5]})"
+                else:
+                    descricao = f"Entrada antecipada {abs(diff_minutos)} min (previsto {hora_esp_str[:5]})"
+            else:
+                minutos_ajuste = diff_minutos
+                if diff_minutos > 0:
+                    descricao = f"Saída {abs(diff_minutos)} min depois (previsto {hora_esp_str[:5]})"
+                else:
+                    descricao = f"Saída antecipada {abs(diff_minutos)} min (previsto {hora_esp_str[:5]})"
+
+            sb.table("ajustes_banco_horas").insert({
+                "colaborador_id": colab_id,
+                "empresa_id": colab["empresa_id"],
+                "minutos": minutos_ajuste,
+                "descricao": descricao,
+                "data_referencia": data_iso,
+                "tipo_referencia": tipo,
+                "origem": "automatico",
+            }).execute()
+
+            existentes.add(chave)  # evita duplicata dentro do mesmo loop
+            criados += 1
+
+        except Exception as e:
+            erros.append(f"Registro {reg['id']}: {e}")
+
+    return {
+        "ok": True,
+        "processados": processados,
+        "criados": criados,
+        "erros": erros[:20],  # limita a 20 erros no retorno
+    }
+
+
 # ── Dispositivos de ponto fixo ────────────────────────────────────────────────
 
 @router.get("/dispositivos")

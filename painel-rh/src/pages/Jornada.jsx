@@ -10,6 +10,7 @@ import {
   getCalendario, criarRegistroManual, getRelatorio,
   criarAtestado, getAtestados, getArquivoAtestado, excluirAtestado,
   getAjustesBanco, criarAjusteBanco, excluirAjusteBanco, atualizarColaborador,
+  backfillBancoHoras,
 } from '../api'
 import Portal from '../components/Portal'
 import { IconVer, IconAjustar, IconExcluir } from '../components/IconBtn'
@@ -1143,7 +1144,7 @@ function fmtMinutos(min) {
   return `${sinal}${h}h${m > 0 ? ` ${m}min` : ''}`
 }
 
-function AbaBancoHoras({ colaboradores }) {
+function AbaBancoHoras({ colaboradores, me }) {
   const [colaboradorId, setColaboradorId] = useState('')
   const [colaborador, setColaborador] = useState(null)
   const [ajustes, setAjustes] = useState([])
@@ -1156,8 +1157,27 @@ function AbaBancoHoras({ colaboradores }) {
   const [salvandoBloqueio, setSalvandoBloqueio] = useState(false)
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
+  const [backfilling, setBackfilling] = useState(false)
+  const [backfillResult, setBackfillResult] = useState(null)
 
   const bloqueado = !!colaborador?.banco_horas_bloqueado
+
+  async function executarBackfill() {
+    if (!confirm('Isso vai processar todos os registros históricos e criar os lançamentos automáticos de banco de horas. Continuar?')) return
+    setBackfilling(true)
+    setBackfillResult(null)
+    try {
+      const r = await backfillBancoHoras()
+      setBackfillResult(r)
+      if (colaboradorId) {
+        setAjustes(await getAjustesBanco(colaboradorId))
+      }
+    } catch (e) {
+      setBackfillResult({ ok: false, erro: e.message })
+    } finally {
+      setBackfilling(false)
+    }
+  }
 
   async function carregarColaborador(id) {
     if (!id) { setColaborador(null); setAjustes([]); return }
@@ -1210,8 +1230,8 @@ function AbaBancoHoras({ colaboradores }) {
 
   return (
     <div className="space-y-5">
-      {/* Seletor de colaborador */}
-      <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 flex flex-wrap gap-3 items-end">
+      {/* Seletor de colaborador + backfill */}
+      <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 flex flex-wrap gap-3 items-end justify-between">
         <div>
           <label className="text-xs text-gray-400 block mb-1">Colaborador</label>
           <select
@@ -1223,6 +1243,33 @@ function AbaBancoHoras({ colaboradores }) {
             {colaboradores.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
           </select>
         </div>
+
+        {me?.papel === 'admin' && (
+          <div className="flex flex-col items-end gap-2">
+            <button
+              onClick={executarBackfill}
+              disabled={backfilling}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 text-white text-sm font-semibold transition-colors"
+            >
+              {backfilling ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                  </svg>
+                  Processando histórico…
+                </>
+              ) : '⚡ Importar histórico de banco de horas'}
+            </button>
+            {backfillResult && (
+              <div className={`text-xs rounded-lg px-3 py-2 ${backfillResult.ok ? 'bg-emerald-900/30 border border-emerald-700/40 text-emerald-300' : 'bg-red-900/30 border border-red-700/40 text-red-300'}`}>
+                {backfillResult.ok
+                  ? `✓ ${backfillResult.criados} lançamentos criados de ${backfillResult.processados} batidas analisadas.`
+                  : `Erro: ${backfillResult.erro}`}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {!colaboradorId && (
@@ -1378,7 +1425,7 @@ export default function Jornada() {
 
       {aba === 'calendario'  && <AbaCalendario  colaboradores={colaboradores} />}
       {aba === 'registros'   && <AbaRegistros   colaboradores={colaboradores} me={me} />}
-      {aba === 'banco_horas' && <AbaBancoHoras   colaboradores={colaboradores} />}
+      {aba === 'banco_horas' && <AbaBancoHoras   colaboradores={colaboradores} me={me} />}
     </div>
   )
 }
