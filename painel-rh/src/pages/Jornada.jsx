@@ -1351,26 +1351,26 @@ function AbaBancoHoras({ colaboradores, me }) {
                 {ajustes.map(a => {
                   const isAuto = a.origem === 'automatico'
                   return (
-                    <div key={a.id} className={`flex items-center justify-between rounded-lg px-3 py-2.5 gap-3 ${isAuto ? 'bg-indigo-950/40 border border-indigo-800/30' : 'bg-gray-800/50'}`}>
+                    <div key={a.id} className={`flex items-center justify-between rounded-lg px-3 py-2.5 gap-3 ${isAuto ? 'bg-gray-800 border border-indigo-500/40' : 'bg-gray-800'}`}>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 mb-0.5">
                           {isAuto && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex-shrink-0">
-                              automático
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-indigo-600 text-white flex-shrink-0">
+                              auto
                             </span>
                           )}
-                          <p className="text-xs text-gray-300 truncate">{a.descricao}</p>
+                          <p className="text-xs text-gray-100 truncate">{a.descricao}</p>
                         </div>
-                        <p className="text-[11px] text-gray-500">
+                        <p className="text-[11px] text-gray-400">
                           {a.data_referencia
-                            ? <><span className="text-blue-400">📅 {new Date(a.data_referencia + 'T12:00:00').toLocaleDateString('pt-BR')}</span> · registrado em {new Date(a.criado_em).toLocaleDateString('pt-BR')}</>
-                            : <>registrado em {new Date(a.criado_em).toLocaleDateString('pt-BR')}</>
+                            ? <><span className="text-blue-300">📅 {new Date(a.data_referencia + 'T12:00:00').toLocaleDateString('pt-BR')}</span> · {new Date(a.criado_em).toLocaleDateString('pt-BR')}</>
+                            : <>{new Date(a.criado_em).toLocaleDateString('pt-BR')}</>
                           }
                         </p>
                       </div>
                       <span className={`text-sm font-bold flex-shrink-0 ${a.minutos >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtMinutos(a.minutos)}</span>
                       {!bloqueado && !isAuto && (
-                        <button onClick={() => remover(a.id)} className="text-gray-600 hover:text-red-400 text-lg leading-none flex-shrink-0">×</button>
+                        <button onClick={() => remover(a.id)} className="text-gray-500 hover:text-red-400 text-lg leading-none flex-shrink-0">×</button>
                       )}
                       {isAuto && <div className="w-5 flex-shrink-0" />}
                     </div>
