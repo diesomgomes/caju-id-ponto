@@ -2,11 +2,10 @@ import { useEffect, useState } from 'react'
 import {
   getColaboradores, criarColaborador, atualizarColaborador, excluirColaborador,
   getEmpresas, getModelosJornada, getLocais, getLocaisColaborador, setLocaisColaborador,
-  alterarSenhaColaborador, getAjustesBanco, criarAjusteBanco, excluirAjusteBanco,
-  getColaborador,
+  alterarSenhaColaborador,
 } from '../api'
 import Portal from '../components/Portal'
-import { IconEditar, IconExcluir, IconJornada, IconLocais, IconSenha, IconBanco, IconQR } from '../components/IconBtn'
+import { IconEditar, IconExcluir, IconJornada, IconLocais, IconSenha, IconQR } from '../components/IconBtn'
 
 const CAMPOS_VAZIO = { nome: '', cpf: '', pis: '', email: '', cargo: '', departamento: '', empresa_id: '', carga_horaria_diaria: '08:00:00', senha: '', modo_ponto: 'ambos', data_inicio_ponto: '' }
 
@@ -351,167 +350,6 @@ function ModalQRColaborador({ colaborador, onFechar }) {
   )
 }
 
-function fmtMinutos(min) {
-  const abs = Math.abs(min)
-  const h = Math.floor(abs / 60)
-  const m = abs % 60
-  const sinal = min < 0 ? '−' : '+'
-  return `${sinal}${h}h${m > 0 ? ` ${m}min` : ''}`
-}
-
-function ModalAjusteBanco({ colaborador: colaboradorInicial, onFechar }) {
-  const [colaborador, setColaborador] = useState(colaboradorInicial)
-  const [ajustes, setAjustes] = useState([])
-  const [sinal, setSinal] = useState('+')
-  const [horas, setHoras] = useState('')
-  const [minutos, setMinutos] = useState('0')
-  const [descricao, setDescricao] = useState('')
-  const [dataRef, setDataRef] = useState('')
-  const [salvando, setSalvando] = useState(false)
-  const [salvandoBloqueio, setSalvandoBloqueio] = useState(false)
-  const [erro, setErro] = useState('')
-
-  const bloqueado = !!colaborador.banco_horas_bloqueado
-
-  useEffect(() => {
-    getAjustesBanco(colaborador.id).then(setAjustes).catch(console.error)
-  }, [colaborador.id])
-
-  async function toggleBloqueio() {
-    setSalvandoBloqueio(true)
-    try {
-      const novo = !bloqueado
-      await atualizarColaborador(colaborador.id, { banco_horas_bloqueado: novo })
-      setColaborador(c => ({ ...c, banco_horas_bloqueado: novo }))
-    } catch (e) { alert(e.message) } finally { setSalvandoBloqueio(false) }
-  }
-
-  async function salvar() {
-    if (bloqueado) return
-    const h = parseInt(horas) || 0
-    const m = parseInt(minutos) || 0
-    const total = (h * 60 + m) * (sinal === '-' ? -1 : 1)
-    if (total === 0) return setErro('Informe pelo menos 1 minuto.')
-    if (!descricao.trim()) return setErro('Informe uma descrição.')
-    setErro(''); setSalvando(true)
-    try {
-      await criarAjusteBanco(colaborador.id, { minutos: total, descricao: descricao.trim(), data_referencia: dataRef || null })
-      setHoras(''); setMinutos('0'); setDescricao(''); setDataRef('')
-      const lista = await getAjustesBanco(colaborador.id)
-      setAjustes(lista)
-    } catch (e) { setErro(e.message) } finally { setSalvando(false) }
-  }
-
-  async function remover(id) {
-    if (bloqueado) return
-    if (!confirm('Remover este ajuste?')) return
-    try {
-      await excluirAjusteBanco(id)
-      setAjustes(a => a.filter(x => x.id !== id))
-    } catch (e) { alert(e.message) }
-  }
-
-  const totalGeral = ajustes.reduce((s, a) => s + a.minutos, 0)
-
-  return (
-    <Portal><div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4">
-      <div className="bg-gray-900 rounded-xl p-6 w-full max-w-md space-y-5 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center">
-          <div>
-            <h3 className="font-semibold text-gray-100">Banco de Horas</h3>
-            <p className="text-xs text-gray-400 mt-0.5">{colaborador.nome}</p>
-          </div>
-          <button onClick={onFechar} className="text-gray-400 hover:text-gray-100 text-xl">×</button>
-        </div>
-
-        {/* Toggle bloqueio */}
-        <div className={`flex items-center justify-between rounded-lg px-4 py-3 border ${bloqueado ? 'bg-red-900/20 border-red-800/50' : 'bg-emerald-900/20 border-emerald-800/50'}`}>
-          <div>
-            <p className={`text-sm font-semibold ${bloqueado ? 'text-red-400' : 'text-emerald-400'}`}>
-              {bloqueado ? '🔒 Banco de horas bloqueado' : '🔓 Banco de horas ativo'}
-            </p>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {bloqueado ? 'Nenhum ajuste pode ser adicionado ou removido.' : 'Ajustes manuais permitidos.'}
-            </p>
-          </div>
-          <button
-            onClick={toggleBloqueio}
-            disabled={salvandoBloqueio}
-            className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50 ${bloqueado ? 'bg-red-600' : 'bg-emerald-500'}`}
-          >
-            <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${bloqueado ? 'translate-x-1' : 'translate-x-6'}`} />
-          </button>
-        </div>
-
-        {/* Total */}
-        <div className={`rounded-lg px-4 py-3 text-center ${totalGeral >= 0 ? 'bg-emerald-900/30 border border-emerald-800/40' : 'bg-red-900/30 border border-red-800/40'}`}>
-          <p className="text-xs text-gray-400 mb-0.5">Saldo de ajustes manuais</p>
-          <p className={`text-2xl font-bold ${totalGeral >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtMinutos(totalGeral)}</p>
-        </div>
-
-        {/* Formulário */}
-        <div className={`space-y-3 ${bloqueado ? 'opacity-40 pointer-events-none select-none' : ''}`}>
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Novo ajuste</p>
-          <div className="flex gap-2">
-            <div className="flex rounded-lg overflow-hidden border border-gray-700 flex-shrink-0">
-              <button onClick={() => setSinal('+')}
-                className={`px-3 py-2 text-sm font-bold transition-colors ${sinal === '+' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400'}`}>+</button>
-              <button onClick={() => setSinal('-')}
-                className={`px-3 py-2 text-sm font-bold transition-colors ${sinal === '-' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>−</button>
-            </div>
-            <input type="number" min="0" placeholder="Horas" value={horas} onChange={e => setHoras(e.target.value)}
-              className="w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm text-center" />
-            <span className="self-center text-gray-400 text-sm">h</span>
-            <input type="number" min="0" max="59" placeholder="Min" value={minutos} onChange={e => setMinutos(e.target.value)}
-              className="w-16 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm text-center" />
-            <span className="self-center text-gray-400 text-sm">min</span>
-          </div>
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <input type="text" placeholder="Motivo / descrição *" value={descricao} onChange={e => setDescricao(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
-            </div>
-            <div className="flex-shrink-0">
-              <input type="date" value={dataRef} onChange={e => setDataRef(e.target.value)}
-                title="Data de referência (opcional)"
-                className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
-            </div>
-          </div>
-          {erro && <p className="text-red-400 text-xs">{erro}</p>}
-          <button onClick={salvar} disabled={salvando}
-            className="w-full py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white text-sm font-semibold">
-            {salvando ? 'Salvando…' : 'Registrar ajuste'}
-          </button>
-        </div>
-
-        {/* Histórico */}
-        {ajustes.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Histórico de ajustes</p>
-            {ajustes.map(a => (
-              <div key={a.id} className="flex items-center justify-between bg-gray-800/50 rounded-lg px-3 py-2 gap-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-gray-300 truncate">{a.descricao}</p>
-                  <p className="text-[11px] text-gray-500 mt-0.5">
-                    {a.data_referencia
-                      ? <><span className="text-blue-400">📅 {new Date(a.data_referencia + 'T12:00:00').toLocaleDateString('pt-BR')}</span> · registrado em {new Date(a.criado_em).toLocaleDateString('pt-BR')}</>
-                      : <>registrado em {new Date(a.criado_em).toLocaleDateString('pt-BR')}</>
-                    }
-                  </p>
-                </div>
-                <span className={`text-sm font-bold flex-shrink-0 ${a.minutos >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtMinutos(a.minutos)}</span>
-                {!bloqueado && (
-                  <button onClick={() => remover(a.id)} className="text-gray-600 hover:text-red-400 text-lg leading-none flex-shrink-0">×</button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div></Portal>
-  )
-}
-
 export default function Colaboradores() {
   const [lista, setLista] = useState([])
   const [empresas, setEmpresas] = useState([])
@@ -522,7 +360,6 @@ export default function Colaboradores() {
   const [modalJornada, setModalJornada] = useState(null)
   const [modalLocais, setModalLocais] = useState(null)
   const [modalSenha, setModalSenha] = useState(null)
-  const [modalBanco, setModalBanco] = useState(null)
   const [modalQR, setModalQR] = useState(null)
   const [form, setForm] = useState(CAMPOS_VAZIO)
   const [loading, setLoading] = useState(false)
@@ -623,7 +460,6 @@ export default function Colaboradores() {
                   <div className="flex gap-3">
                     <IconEditar onClick={() => abrirEditar(c)} />
                     <IconSenha onClick={() => setModalSenha(c)} />
-                    <IconBanco onClick={() => setModalBanco(c)} />
                     <IconQR onClick={() => setModalQR(c)} />
                     <IconJornada onClick={() => setModalJornada(c)} />
                     <IconLocais onClick={() => setModalLocais(c)} />
@@ -653,10 +489,6 @@ export default function Colaboradores() {
 
       {modalSenha && (
         <ModalSenha colaborador={modalSenha} onFechar={() => setModalSenha(null)} />
-      )}
-
-      {modalBanco && (
-        <ModalAjusteBanco colaborador={modalBanco} onFechar={() => setModalBanco(null)} />
       )}
 
       {modalQR && (

@@ -9,6 +9,7 @@ import {
   excluirJornada, excluirRegistro, getFotoUrl, ajustarRegistro, getMe,
   getCalendario, criarRegistroManual, getRelatorio,
   criarAtestado, getAtestados, getArquivoAtestado, excluirAtestado,
+  getAjustesBanco, criarAjusteBanco, excluirAjusteBanco, atualizarColaborador,
 } from '../api'
 import Portal from '../components/Portal'
 import { IconVer, IconAjustar, IconExcluir } from '../components/IconBtn'
@@ -1133,6 +1134,199 @@ function AbaCalendario({ colaboradores }) {
   )
 }
 
+// ── Banco de Horas ────────────────────────────────────────────────────────────
+function fmtMinutos(min) {
+  const abs = Math.abs(min)
+  const h = Math.floor(abs / 60)
+  const m = abs % 60
+  const sinal = min < 0 ? '−' : '+'
+  return `${sinal}${h}h${m > 0 ? ` ${m}min` : ''}`
+}
+
+function AbaBancoHoras({ colaboradores }) {
+  const [colaboradorId, setColaboradorId] = useState('')
+  const [colaborador, setColaborador] = useState(null)
+  const [ajustes, setAjustes] = useState([])
+  const [sinal, setSinal] = useState('+')
+  const [horas, setHoras] = useState('')
+  const [minutos, setMinutos] = useState('0')
+  const [descricao, setDescricao] = useState('')
+  const [dataRef, setDataRef] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [salvandoBloqueio, setSalvandoBloqueio] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [erro, setErro] = useState('')
+
+  const bloqueado = !!colaborador?.banco_horas_bloqueado
+
+  async function carregarColaborador(id) {
+    if (!id) { setColaborador(null); setAjustes([]); return }
+    setLoading(true)
+    try {
+      const c = colaboradores.find(x => x.id === id) || null
+      setColaborador(c)
+      const lista = await getAjustesBanco(id)
+      setAjustes(lista)
+    } catch (e) { console.error(e) } finally { setLoading(false) }
+  }
+
+  useEffect(() => { carregarColaborador(colaboradorId) }, [colaboradorId])
+
+  async function toggleBloqueio() {
+    if (!colaborador) return
+    setSalvandoBloqueio(true)
+    try {
+      const novo = !bloqueado
+      await atualizarColaborador(colaborador.id, { banco_horas_bloqueado: novo })
+      setColaborador(c => ({ ...c, banco_horas_bloqueado: novo }))
+    } catch (e) { alert(e.message) } finally { setSalvandoBloqueio(false) }
+  }
+
+  async function salvar() {
+    if (bloqueado) return
+    const h = parseInt(horas) || 0
+    const m = parseInt(minutos) || 0
+    const total = (h * 60 + m) * (sinal === '-' ? -1 : 1)
+    if (total === 0) return setErro('Informe pelo menos 1 minuto.')
+    if (!descricao.trim()) return setErro('Informe uma descrição.')
+    setErro(''); setSalvando(true)
+    try {
+      await criarAjusteBanco(colaboradorId, { minutos: total, descricao: descricao.trim(), data_referencia: dataRef || null })
+      setHoras(''); setMinutos('0'); setDescricao(''); setDataRef('')
+      setAjustes(await getAjustesBanco(colaboradorId))
+    } catch (e) { setErro(e.message) } finally { setSalvando(false) }
+  }
+
+  async function remover(id) {
+    if (bloqueado) return
+    if (!confirm('Remover este ajuste?')) return
+    try {
+      await excluirAjusteBanco(id)
+      setAjustes(a => a.filter(x => x.id !== id))
+    } catch (e) { alert(e.message) }
+  }
+
+  const totalGeral = ajustes.reduce((s, a) => s + a.minutos, 0)
+
+  return (
+    <div className="space-y-5">
+      {/* Seletor de colaborador */}
+      <div className="bg-gray-900 rounded-xl p-4 border border-gray-800 flex flex-wrap gap-3 items-end">
+        <div>
+          <label className="text-xs text-gray-400 block mb-1">Colaborador</label>
+          <select
+            value={colaboradorId}
+            onChange={e => setColaboradorId(e.target.value)}
+            className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm min-w-[220px]"
+          >
+            <option value="">Selecione um colaborador…</option>
+            {colaboradores.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {!colaboradorId && (
+        <div className="text-center py-16 text-gray-500">Selecione um colaborador para gerenciar o banco de horas.</div>
+      )}
+
+      {colaboradorId && loading && (
+        <div className="text-center py-16 text-gray-500">Carregando…</div>
+      )}
+
+      {colaboradorId && !loading && colaborador && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+          {/* Painel esquerdo: status + formulário */}
+          <div className="space-y-4">
+            {/* Toggle bloqueio */}
+            <div className={`flex items-center justify-between rounded-xl px-4 py-4 border ${bloqueado ? 'bg-red-900/20 border-red-800/50' : 'bg-emerald-900/20 border-emerald-800/50'}`}>
+              <div>
+                <p className={`text-sm font-semibold ${bloqueado ? 'text-red-400' : 'text-emerald-400'}`}>
+                  {bloqueado ? '🔒 Banco de horas bloqueado' : '🔓 Banco de horas ativo'}
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {bloqueado ? 'Nenhum ajuste pode ser adicionado ou removido.' : 'Ajustes manuais permitidos.'}
+                </p>
+              </div>
+              <button
+                onClick={toggleBloqueio}
+                disabled={salvandoBloqueio}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50 ${bloqueado ? 'bg-red-600' : 'bg-emerald-500'}`}
+              >
+                <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${bloqueado ? 'translate-x-1' : 'translate-x-6'}`} />
+              </button>
+            </div>
+
+            {/* Saldo total */}
+            <div className={`rounded-xl px-4 py-4 text-center border ${totalGeral >= 0 ? 'bg-emerald-900/30 border-emerald-800/40' : 'bg-red-900/30 border-red-800/40'}`}>
+              <p className="text-xs text-gray-400 mb-0.5">Saldo de ajustes manuais</p>
+              <p className={`text-3xl font-bold ${totalGeral >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtMinutos(totalGeral)}</p>
+            </div>
+
+            {/* Formulário novo ajuste */}
+            <div className={`bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-3 ${bloqueado ? 'opacity-40 pointer-events-none select-none' : ''}`}>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Novo ajuste</p>
+              <div className="flex gap-2 flex-wrap">
+                <div className="flex rounded-lg overflow-hidden border border-gray-700 flex-shrink-0">
+                  <button onClick={() => setSinal('+')}
+                    className={`px-3 py-2 text-sm font-bold transition-colors ${sinal === '+' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400'}`}>+</button>
+                  <button onClick={() => setSinal('-')}
+                    className={`px-3 py-2 text-sm font-bold transition-colors ${sinal === '-' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'}`}>−</button>
+                </div>
+                <input type="number" min="0" placeholder="Horas" value={horas} onChange={e => setHoras(e.target.value)}
+                  className="w-20 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm text-center" />
+                <span className="self-center text-gray-400 text-sm">h</span>
+                <input type="number" min="0" max="59" placeholder="Min" value={minutos} onChange={e => setMinutos(e.target.value)}
+                  className="w-16 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm text-center" />
+                <span className="self-center text-gray-400 text-sm">min</span>
+              </div>
+              <div className="flex gap-2">
+                <input type="text" placeholder="Motivo / descrição *" value={descricao} onChange={e => setDescricao(e.target.value)}
+                  className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+                <input type="date" value={dataRef} onChange={e => setDataRef(e.target.value)}
+                  title="Data de referência (opcional)"
+                  className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+              </div>
+              {erro && <p className="text-red-400 text-xs">{erro}</p>}
+              <button onClick={salvar} disabled={salvando}
+                className="w-full py-2 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white text-sm font-semibold">
+                {salvando ? 'Salvando…' : 'Registrar ajuste'}
+              </button>
+            </div>
+          </div>
+
+          {/* Painel direito: histórico */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-3">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Histórico de ajustes</p>
+            {ajustes.length === 0 ? (
+              <p className="text-sm text-gray-600 text-center py-8">Nenhum ajuste registrado.</p>
+            ) : (
+              <div className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
+                {ajustes.map(a => (
+                  <div key={a.id} className="flex items-center justify-between bg-gray-800/50 rounded-lg px-3 py-2.5 gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-300 truncate">{a.descricao}</p>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        {a.data_referencia
+                          ? <><span className="text-blue-400">📅 {new Date(a.data_referencia + 'T12:00:00').toLocaleDateString('pt-BR')}</span> · registrado em {new Date(a.criado_em).toLocaleDateString('pt-BR')}</>
+                          : <>registrado em {new Date(a.criado_em).toLocaleDateString('pt-BR')}</>
+                        }
+                      </p>
+                    </div>
+                    <span className={`text-sm font-bold flex-shrink-0 ${a.minutos >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtMinutos(a.minutos)}</span>
+                    {!bloqueado && (
+                      <button onClick={() => remover(a.id)} className="text-gray-600 hover:text-red-400 text-lg leading-none flex-shrink-0">×</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function Jornada() {
   const [aba, setAba] = useState('calendario')
@@ -1145,8 +1339,9 @@ export default function Jornada() {
   }, [])
 
   const abas = [
-    { id: 'calendario', label: 'Calendário' },
-    { id: 'registros',  label: 'Registro de batidas' },
+    { id: 'calendario',  label: 'Calendário' },
+    { id: 'registros',   label: 'Registro de batidas' },
+    { id: 'banco_horas', label: 'Banco de horas' },
   ]
 
   return (
@@ -1170,8 +1365,9 @@ export default function Jornada() {
         ))}
       </div>
 
-      {aba === 'calendario' && <AbaCalendario colaboradores={colaboradores} />}
-      {aba === 'registros'  && <AbaRegistros  colaboradores={colaboradores} me={me} />}
+      {aba === 'calendario'  && <AbaCalendario  colaboradores={colaboradores} />}
+      {aba === 'registros'   && <AbaRegistros   colaboradores={colaboradores} me={me} />}
+      {aba === 'banco_horas' && <AbaBancoHoras   colaboradores={colaboradores} />}
     </div>
   )
 }
