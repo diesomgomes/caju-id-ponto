@@ -267,6 +267,112 @@ function AbaJornada({ colaboradores, me }) {
   )
 }
 
+// ── Modal Ver Atestado ────────────────────────────────────────────────────────
+function ModalVerAtestado({ atestado, nomeColab, onClose, onExcluir }) {
+  const [loadingUrl, setLoadingUrl] = useState(false)
+  const [urlArquivo, setUrlArquivo] = useState(null)
+  const [erroUrl, setErroUrl] = useState('')
+
+  const dInicio = new Date(atestado.data_inicio + 'T12:00:00').toLocaleDateString('pt-BR')
+  const dFim    = new Date(atestado.data_fim    + 'T12:00:00').toLocaleDateString('pt-BR')
+
+  async function abrirArquivo() {
+    setLoadingUrl(true); setErroUrl('')
+    try {
+      const d = await getArquivoAtestado(atestado.id)
+      setUrlArquivo(d.url)
+      const a = document.createElement('a')
+      a.href = d.url; a.target = '_blank'; a.rel = 'noopener noreferrer'
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    } catch { setErroUrl('Não foi possível abrir o arquivo. Verifique se o bucket "atestados" existe no Supabase Storage.') }
+    finally { setLoadingUrl(false) }
+  }
+
+  async function baixarArquivo() {
+    setLoadingUrl(true); setErroUrl('')
+    try {
+      const d = urlArquivo ? { url: urlArquivo } : await getArquivoAtestado(atestado.id)
+      const res = await fetch(d.url)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      const ext = atestado.arquivo_url?.split('.').pop() || 'pdf'
+      a.href = url; a.download = `atestado_${nomeColab.replace(/\s+/g,'_')}_${atestado.data_inicio}.${ext}`
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch { setErroUrl('Erro ao baixar arquivo.') }
+    finally { setLoadingUrl(false) }
+  }
+
+  return (
+    <Portal><div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4" onClick={onClose}>
+      <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🏥</span>
+            <h3 className="font-semibold text-gray-100">Atestado Médico</h3>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-100 text-xl">×</button>
+        </div>
+        <div className="bg-gray-800 rounded-xl p-4 space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-gray-400">Colaborador</span>
+            <span className="text-gray-100 font-medium">{nomeColab}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">Data início</span>
+            <span className="text-gray-100">{dInicio}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">Data fim</span>
+            <span className="text-gray-100">{dFim}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-400">Duração</span>
+            <span className="text-blue-400 font-semibold">{atestado.qtd_dias} dia{atestado.qtd_dias !== 1 ? 's' : ''}</span>
+          </div>
+          {atestado.observacao && (
+            <div className="pt-1 border-t border-gray-700">
+              <span className="text-gray-400">Observação: </span>
+              <span className="text-gray-200">{atestado.observacao}</span>
+            </div>
+          )}
+        </div>
+        {atestado.arquivo_url ? (
+          <div className="flex gap-2">
+            <button onClick={abrirArquivo} disabled={loadingUrl}
+              className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg bg-blue-700 hover:bg-blue-600 disabled:opacity-50 text-white text-sm font-medium">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+              </svg>
+              {loadingUrl ? 'Abrindo…' : 'Abrir arquivo'}
+            </button>
+            <button onClick={baixarArquivo} disabled={loadingUrl}
+              className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white text-sm font-medium">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              Baixar
+            </button>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-500 text-center py-2 border border-dashed border-gray-700 rounded-lg">
+            Nenhum arquivo anexado a este atestado
+          </p>
+        )}
+        {erroUrl && <p className="text-xs text-red-400">{erroUrl}</p>}
+        <div className="flex gap-2 pt-1">
+          <button onClick={onClose} className="flex-1 py-2 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 text-sm">Fechar</button>
+          <button onClick={onExcluir} className="py-2 px-4 rounded-lg bg-red-900/40 hover:bg-red-900/70 text-red-400 text-sm border border-red-800/50">
+            Remover atestado
+          </button>
+        </div>
+      </div>
+    </div></Portal>
+  )
+}
+
 // ── Modal Nova Batida ─────────────────────────────────────────────────────────
 function ModalNovaBatida({ colaboradores, onClose, onSalvo }) {
   const [colaboradorId, setColaboradorId] = useState('')
@@ -412,6 +518,7 @@ function AbaRegistros({ colaboradores, me }) {
   const [loading, setLoading] = useState(false)
   const [fotoReg, setFotoReg] = useState(null)
   const [ajusteReg, setAjusteReg] = useState(null)
+  const [atestadoVer, setAtestadoVer] = useState(null)
   const [novaBatida, setNovaBatida] = useState(false)
 
   async function buscar(silencioso = false) {
@@ -508,22 +615,16 @@ function AbaRegistros({ colaboradores, me }) {
                       </td>
                       <td className="px-4 py-3 text-gray-500">—</td>
                       <td className="px-4 py-3">
-                        {a.arquivo_url ? (
-                          <button
-                            onClick={async () => {
-                              try { const d = await getArquivoAtestado(a.id); window.open(d.url, '_blank') }
-                              catch { alert('Erro ao abrir arquivo.') }
-                            }}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-blue-400 border border-blue-700/50 hover:border-blue-400 hover:text-blue-300 transition-colors"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                            </svg>
-                            Arquivo
-                          </button>
-                        ) : (
-                          <span className="text-gray-600">—</span>
-                        )}
+                        <button
+                          onClick={() => setAtestadoVer({ atestado: a, nomeColab })}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-blue-400 border border-blue-700/50 hover:border-blue-400 hover:text-blue-300 transition-colors"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                          </svg>
+                          {a.arquivo_url ? 'Ver / Baixar' : 'Ver detalhes'}
+                        </button>
                       </td>
                       <td className="px-4 py-3">
                         {me?.papel === 'admin' && (
@@ -573,6 +674,18 @@ function AbaRegistros({ colaboradores, me }) {
       {fotoReg && <ModalFoto registro={fotoReg} onClose={() => setFotoReg(null)} />}
       {ajusteReg && <ModalAjuste registro={ajusteReg} onClose={() => setAjusteReg(null)} onSalvo={buscar} />}
       {novaBatida && <ModalNovaBatida colaboradores={colaboradores} onClose={() => setNovaBatida(false)} onSalvo={buscar} />}
+      {atestadoVer && (
+        <ModalVerAtestado
+          atestado={atestadoVer.atestado}
+          nomeColab={atestadoVer.nomeColab}
+          onClose={() => setAtestadoVer(null)}
+          onExcluir={async () => {
+            if (!confirm(`Remover atestado de ${atestadoVer.nomeColab}?`)) return
+            try { await excluirAtestado(atestadoVer.atestado.id); setAtestadoVer(null); buscar() }
+            catch (e) { alert(e.message) }
+          }}
+        />
+      )}
     </div>
   )
 }
