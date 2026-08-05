@@ -1256,11 +1256,14 @@ async def criar_ajuste_banco(colab_id: str, body: dict, rh=Depends(get_usuario_r
         raise HTTPException(400, "Descrição obrigatória.")
     if minutos_val == 0:
         raise HTTPException(400, "Informe uma quantidade de horas/minutos diferente de zero.")
+    colab_info = sb.table("colaboradores").select("empresa_id").eq("id", colab_id).single().execute()
     payload = {
         "colaborador_id": colab_id,
+        "empresa_id": (colab_info.data or {}).get("empresa_id"),
         "minutos": minutos_val,
         "descricao": descricao,
         "criado_por": rh["id"],
+        "origem": "manual",
     }
     if body.get("data_referencia"):
         payload["data_referencia"] = str(body["data_referencia"])

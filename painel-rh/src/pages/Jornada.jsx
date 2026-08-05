@@ -1301,23 +1301,34 @@ function AbaBancoHoras({ colaboradores }) {
               <p className="text-sm text-gray-600 text-center py-8">Nenhum ajuste registrado.</p>
             ) : (
               <div className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
-                {ajustes.map(a => (
-                  <div key={a.id} className="flex items-center justify-between bg-gray-800/50 rounded-lg px-3 py-2.5 gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-300 truncate">{a.descricao}</p>
-                      <p className="text-[11px] text-gray-500 mt-0.5">
-                        {a.data_referencia
-                          ? <><span className="text-blue-400">📅 {new Date(a.data_referencia + 'T12:00:00').toLocaleDateString('pt-BR')}</span> · registrado em {new Date(a.criado_em).toLocaleDateString('pt-BR')}</>
-                          : <>registrado em {new Date(a.criado_em).toLocaleDateString('pt-BR')}</>
-                        }
-                      </p>
+                {ajustes.map(a => {
+                  const isAuto = a.origem === 'automatico'
+                  return (
+                    <div key={a.id} className={`flex items-center justify-between rounded-lg px-3 py-2.5 gap-3 ${isAuto ? 'bg-indigo-950/40 border border-indigo-800/30' : 'bg-gray-800/50'}`}>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          {isAuto && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex-shrink-0">
+                              automático
+                            </span>
+                          )}
+                          <p className="text-xs text-gray-300 truncate">{a.descricao}</p>
+                        </div>
+                        <p className="text-[11px] text-gray-500">
+                          {a.data_referencia
+                            ? <><span className="text-blue-400">📅 {new Date(a.data_referencia + 'T12:00:00').toLocaleDateString('pt-BR')}</span> · registrado em {new Date(a.criado_em).toLocaleDateString('pt-BR')}</>
+                            : <>registrado em {new Date(a.criado_em).toLocaleDateString('pt-BR')}</>
+                          }
+                        </p>
+                      </div>
+                      <span className={`text-sm font-bold flex-shrink-0 ${a.minutos >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtMinutos(a.minutos)}</span>
+                      {!bloqueado && !isAuto && (
+                        <button onClick={() => remover(a.id)} className="text-gray-600 hover:text-red-400 text-lg leading-none flex-shrink-0">×</button>
+                      )}
+                      {isAuto && <div className="w-5 flex-shrink-0" />}
                     </div>
-                    <span className={`text-sm font-bold flex-shrink-0 ${a.minutos >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmtMinutos(a.minutos)}</span>
-                    {!bloqueado && (
-                      <button onClick={() => remover(a.id)} className="text-gray-600 hover:text-red-400 text-lg leading-none flex-shrink-0">×</button>
-                    )}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
