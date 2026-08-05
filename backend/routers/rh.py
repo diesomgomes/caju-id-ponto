@@ -1316,14 +1316,19 @@ async def backfill_banco_horas(rh=Depends(get_usuario_rh_atual)):
         .execute()
     modelos = {m["id"]: m for m in (modelos_res.data or [])}
 
-    # Carrega todos os ajustes automáticos já existentes (para evitar duplicatas)
-    existentes_res = sb.table("ajustes_banco_horas") \
-        .select("colaborador_id, data_referencia, tipo_referencia") \
-        .eq("origem", "automatico") \
-        .execute()
+    # Carrega ajustes existentes para deduplicação
+    # Tenta filtrar por origem='automatico' — se a coluna não existir, carrega tudo
     existentes = set()
-    for e in (existentes_res.data or []):
-        existentes.add((e["colaborador_id"], e["data_referencia"], e["tipo_referencia"]))
+    try:
+        existentes_res = sb.table("ajustes_banco_horas") \
+            .select("colaborador_id, data_referencia, tipo_referencia") \
+            .eq("origem", "automatico") \
+            .execute()
+        for e in (existentes_res.data or []):
+            if e.get("data_referencia") and e.get("tipo_referencia"):
+                existentes.add((e["colaborador_id"], e["data_referencia"], e["tipo_referencia"]))
+    except Exception:
+        pass  # coluna origem ainda não existe — seguro continuar (inserts vão falhar se dupl.)
 
     # Carrega todos os registros válidos de entrada/saída
     regs_res = sb.table("registros_ponto") \
@@ -1398,7 +1403,9 @@ async def backfill_banco_horas(rh=Depends(get_usuario_rh_atual)):
                 else:
                     descricao = f"Saída antecipada {abs(diff_minutos)} min (previsto {hora_esp_str[:5]})"
 
-            sb.table("ajustes_banco_horas").insert({
+            # Tenta inserir com todos os campos novos; se falhar por coluna inexistente,
+            # insere com campos mínimos (migration ainda não rodada)
+            payload_completo = {
                 "colaborador_id": colab_id,
                 "empresa_id": colab["empresa_id"],
                 "minutos": minutos_ajuste,
@@ -1406,7 +1413,22 @@ async def backfill_banco_horas(rh=Depends(get_usuario_rh_atual)):
                 "data_referencia": data_iso,
                 "tipo_referencia": tipo,
                 "origem": "automatico",
-            }).execute()
+            }
+            try:
+                sb.table("ajustes_banco_horas").insert(payload_completo).execute()
+            except Exception as e1:
+                # Fallback: sem colunas opcionais (migration não rodada)
+                payload_min = {
+                    "colaborador_id": colab_id,
+                    "minutos": minutos_ajuste,
+                    "descricao": descricao,
+                    "data_referencia": data_iso,
+                }
+                try:
+                    sb.table("ajustes_banco_horas").insert(payload_min).execute()
+                except Exception as e2:
+                    erros.append(f"Registro {reg['id']} ({tipo} {data_iso}): {e2}")
+                    continue
 
             existentes.add(chave)  # evita duplicata dentro do mesmo loop
             criados += 1
