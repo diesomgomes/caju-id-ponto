@@ -187,6 +187,29 @@ export async function uploadKioskApk(file) {
   return res.json()
 }
 
+export const getAtestados = (params = {}) => {
+  const qs = new URLSearchParams(params).toString()
+  return api(`/rh/atestados${qs ? '?' + qs : ''}`)
+}
+
+export const excluirAtestado = (id) => api(`/rh/atestados/${id}`, { method: 'DELETE' })
+
+export async function getArquivoAtestado(atestadoId) {
+  return api(`/rh/atestados/${atestadoId}/arquivo`)
+}
+
+export async function criarAtestado(formData) {
+  const token = getToken()
+  const base = window.__API_URL__ || 'https://caju-id-ponto-production.up.railway.app'
+  const res = await fetch(`${base}/rh/atestados`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  })
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || 'Erro ao salvar atestado') }
+  return res.json()
+}
+
 export const getRelatorio  = (mes, colaborador_id) => {
   const q = colaborador_id ? `&colaborador_id=${colaborador_id}` : ''
   return api(`/rh/relatorio?mes=${mes}${q}`)

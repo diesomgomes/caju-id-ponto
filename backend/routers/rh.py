@@ -950,6 +950,18 @@ async def get_calendario(
         .gte("data", inicio).lte("data", fim).execute().data or []
     feriados_set = {r["data"] for r in nacionais + empresa_fer}
 
+    # Atestados do período
+    atestados_res = sb.table("atestados").select("id, data_inicio, data_fim, qtd_dias, observacao, arquivo_url") \
+        .eq("colaborador_id", colaborador_id) \
+        .lte("data_inicio", fim).gte("data_fim", inicio).execute().data or []
+    atestados_dias: dict = {}
+    for a in atestados_res:
+        cur = date.fromisoformat(a["data_inicio"])
+        fim_at = date.fromisoformat(a["data_fim"])
+        while cur <= fim_at:
+            atestados_dias[cur.isoformat()] = a
+            cur += timedelta(days=1)
+
     # Jornadas do período
     jornadas_res = sb.table("jornadas_diarias").select("*") \
         .eq("colaborador_id", colaborador_id) \
@@ -1005,6 +1017,11 @@ async def get_calendario(
         # Feriado
         if d_iso in feriados_set:
             dias.append({"data": d_iso, "status": "feriado"})
+            continue
+
+        # Atestado
+        if d_iso in atestados_dias:
+            dias.append({"data": d_iso, "status": "atestado", "atestado": atestados_dias[d_iso]})
             continue
 
         # Dia futuro
@@ -1349,6 +1366,96 @@ async def download_kiosk_apk(rh=Depends(get_usuario_rh_atual)):
         media_type="application/zip",
         headers={"Content-Disposition": 'attachment; filename="caju-kiosk.zip"'},
     )
+
+
+# ── Atestados ─────────────────────────────────────────────────────────────────
+
+from fastapi import Form as FormParam
+
+@router.post("/atestados")
+async def criar_atestado(
+    colaborador_id: str = FormParam(...),
+    data_inicio: str = FormParam(...),
+    qtd_dias: int = FormParam(...),
+    observacao: str = FormParam(""),
+    arquivo: UploadFile = File(None),
+    rh=Depends(get_usuario_rh_atual),
+):
+    ids = _empresa_ids(rh)
+    colab = sb.table("colaboradores").select("id, empresa_id").eq("id", colaborador_id).in_("empresa_id", ids).single().execute()
+    if not colab.data:
+        raise HTTPException(404, "Colaborador não encontrado")
+    empresa_id = colab.data["empresa_id"]
+
+    try:
+        d_inicio = date.fromisoformat(data_inicio)
+    except ValueError:
+        raise HTTPException(400, "data_inicio inválida. Use AAAA-MM-DD.")
+    if qtd_dias < 1:
+        raise HTTPException(400, "qtd_dias deve ser >= 1")
+    d_fim = d_inicio + timedelta(days=qtd_dias - 1)
+
+    arquivo_url = None
+    if arquivo and arquivo.filename:
+        try:
+            conteudo = await arquivo.read()
+            from services.storage import upload_atestado
+            arquivo_url = upload_atestado(empresa_id, colaborador_id, conteudo, arquivo.filename)
+        except Exception:
+            pass  # continua sem arquivo se upload falhar
+
+    payload = {
+        "colaborador_id": colaborador_id,
+        "empresa_id": empresa_id,
+        "data_inicio": d_inicio.isoformat(),
+        "qtd_dias": qtd_dias,
+        "data_fim": d_fim.isoformat(),
+        "observacao": observacao.strip() or None,
+        "arquivo_url": arquivo_url,
+        "criado_por": rh["id"],
+    }
+    res = sb.table("atestados").insert(payload).execute()
+    return res.data[0]
+
+
+@router.get("/atestados")
+async def listar_atestados(
+    colaborador_id: Optional[str] = None,
+    mes: Optional[str] = None,
+    rh=Depends(get_usuario_rh_atual),
+):
+    ids = _empresa_ids(rh)
+    q = sb.table("atestados").select("*").in_("empresa_id", ids)
+    if colaborador_id:
+        q = q.eq("colaborador_id", colaborador_id)
+    if mes:
+        try:
+            ano, m = mes.split("-")
+            inicio_mes = f"{mes}-01"
+            _, total = cal_module.monthrange(int(ano), int(m))
+            fim_mes = f"{mes}-{total:02d}"
+            q = q.lte("data_inicio", fim_mes).gte("data_fim", inicio_mes)
+        except Exception:
+            pass
+    res = q.order("data_inicio", desc=True).execute()
+    return res.data or []
+
+
+@router.delete("/atestados/{atestado_id}")
+async def excluir_atestado(atestado_id: str, rh=Depends(get_usuario_rh_atual)):
+    ids = _empresa_ids(rh)
+    sb.table("atestados").delete().eq("id", atestado_id).in_("empresa_id", ids).execute()
+    return {"ok": True}
+
+
+@router.get("/atestados/{atestado_id}/arquivo")
+async def url_arquivo_atestado(atestado_id: str, rh=Depends(get_usuario_rh_atual)):
+    ids = _empresa_ids(rh)
+    res = sb.table("atestados").select("arquivo_url").eq("id", atestado_id).in_("empresa_id", ids).single().execute()
+    if not res.data or not res.data.get("arquivo_url"):
+        raise HTTPException(404, "Arquivo não encontrado")
+    from services.storage import gerar_url_assinada_atestado
+    return {"url": gerar_url_assinada_atestado(res.data["arquivo_url"])}
 
 
 @router.post("/kiosk-apk/upload")

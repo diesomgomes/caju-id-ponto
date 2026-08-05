@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import L from 'leaflet'
-import { getRegistros, getColaboradores, getFotoUrl, ajustarRegistro, excluirRegistro, getMe, criarRegistroManual } from '../api'
+import { getRegistros, getColaboradores, getFotoUrl, ajustarRegistro, excluirRegistro, getMe, criarRegistroManual, criarAtestado } from '../api'
 import Portal from '../components/Portal'
 import { IconVer, IconAjustar, IconExcluir } from '../components/IconBtn'
 
@@ -152,20 +152,31 @@ function ModalNovaBatida({ colaboradores, onClose, onSalvo }) {
     return new Date(now - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
   })
   const [motivo, setMotivo] = useState('')
+  const [dataAtestado, setDataAtestado] = useState(() => new Date().toISOString().slice(0, 10))
+  const [qtdDias, setQtdDias] = useState(1)
+  const [arquivo, setArquivo] = useState(null)
+  const [observacao, setObservacao] = useState('')
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
 
+  const isAtestado = tipo === 'atestado'
+
   async function salvar() {
     if (!colaboradorId) return setErro('Selecione o colaborador.')
-    if (!motivo.trim()) return setErro('Informe o motivo do lançamento.')
     setLoading(true)
     try {
-      await criarRegistroManual({
-        colaborador_id: colaboradorId,
-        tipo,
-        registrado_em: new Date(horario).toISOString(),
-        motivo,
-      })
+      if (isAtestado) {
+        const form = new FormData()
+        form.append('colaborador_id', colaboradorId)
+        form.append('data_inicio', dataAtestado)
+        form.append('qtd_dias', String(qtdDias))
+        form.append('observacao', observacao)
+        if (arquivo) form.append('arquivo', arquivo)
+        await criarAtestado(form)
+      } else {
+        if (!motivo.trim()) { setLoading(false); return setErro('Informe o motivo do lançamento.') }
+        await criarRegistroManual({ colaborador_id: colaboradorId, tipo, registrado_em: new Date(horario).toISOString(), motivo })
+      }
       onSalvo()
       onClose()
     } catch (e) { setErro(e.message) } finally { setLoading(false) }
@@ -173,14 +184,17 @@ function ModalNovaBatida({ colaboradores, onClose, onSalvo }) {
 
   return (
     <Portal><div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4">
-      <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4" onClick={e => e.stopPropagation()}>
+      <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center">
           <div>
             <h3 className="font-semibold text-gray-100">Nova Batida Manual</h3>
-            <p className="text-xs text-amber-400 mt-0.5">Este registro ficará marcado como lançamento manual.</p>
+            <p className="text-xs text-amber-400 mt-0.5">
+              {isAtestado ? 'Os dias serão marcados como atestado no calendário.' : 'Este registro ficará marcado como lançamento manual.'}
+            </p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-100 text-xl ml-4">×</button>
         </div>
+
         <div>
           <label className="text-sm text-gray-400">Colaborador</label>
           <select value={colaboradorId} onChange={e => setColaboradorId(e.target.value)}
@@ -189,30 +203,75 @@ function ModalNovaBatida({ colaboradores, onClose, onSalvo }) {
             {colaboradores.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
           </select>
         </div>
+
         <div>
           <label className="text-sm text-gray-400">Tipo</label>
           <select value={tipo} onChange={e => setTipo(e.target.value)}
             className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100">
             {TIPOS.slice(1).map(t => <option key={t} value={t}>{t.replace(/_/g,' ')}</option>)}
+            <option value="atestado">Atestado</option>
           </select>
         </div>
-        <div>
-          <label className="text-sm text-gray-400">Horário</label>
-          <input type="datetime-local" value={horario} onChange={e => setHorario(e.target.value)}
-            className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100" />
-        </div>
-        <div>
-          <label className="text-sm text-gray-400">Motivo *</label>
-          <textarea value={motivo} onChange={e => setMotivo(e.target.value)} rows={3}
-            className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 resize-none"
-            placeholder="Descreva o motivo do lançamento manual" />
-        </div>
+
+        {isAtestado ? (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm text-gray-400">Data do atestado</label>
+                <input type="date" value={dataAtestado} onChange={e => setDataAtestado(e.target.value)}
+                  className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100" />
+              </div>
+              <div>
+                <label className="text-sm text-gray-400">Quantidade de dias</label>
+                <input type="number" min={1} value={qtdDias} onChange={e => setQtdDias(Math.max(1, Number(e.target.value)))}
+                  className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100" />
+              </div>
+            </div>
+            {qtdDias > 0 && (
+              <p className="text-xs text-blue-400">
+                Período: {new Date(dataAtestado + 'T12:00:00').toLocaleDateString('pt-BR')} até{' '}
+                {new Date(new Date(dataAtestado + 'T12:00:00').getTime() + (qtdDias - 1) * 86400000).toLocaleDateString('pt-BR')}
+              </p>
+            )}
+            <div>
+              <label className="text-sm text-gray-400">Arquivo do atestado (opcional)</label>
+              <input
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+                onChange={e => setArquivo(e.target.files[0] || null)}
+                className="w-full mt-1 text-sm text-gray-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-gray-700 file:text-gray-200 hover:file:bg-gray-600"
+              />
+              {arquivo && <p className="text-xs text-gray-500 mt-1">{arquivo.name}</p>}
+            </div>
+            <div>
+              <label className="text-sm text-gray-400">Observação (opcional)</label>
+              <textarea value={observacao} onChange={e => setObservacao(e.target.value)} rows={2}
+                className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 resize-none text-sm"
+                placeholder="Ex: Consulta médica, cirurgia…" />
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <label className="text-sm text-gray-400">Horário</label>
+              <input type="datetime-local" value={horario} onChange={e => setHorario(e.target.value)}
+                className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100" />
+            </div>
+            <div>
+              <label className="text-sm text-gray-400">Motivo *</label>
+              <textarea value={motivo} onChange={e => setMotivo(e.target.value)} rows={3}
+                className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 resize-none"
+                placeholder="Descreva o motivo do lançamento manual" />
+            </div>
+          </>
+        )}
+
         {erro && <p className="text-red-400 text-sm">{erro}</p>}
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 py-2 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700">Cancelar</button>
           <button onClick={salvar} disabled={loading}
-            className="flex-1 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-semibold">
-            {loading ? 'Salvando…' : 'Lançar'}
+            className={`flex-1 py-2 rounded-lg disabled:opacity-50 text-white font-semibold ${isAtestado ? 'bg-blue-600 hover:bg-blue-500' : 'bg-amber-600 hover:bg-amber-500'}`}>
+            {loading ? 'Salvando…' : isAtestado ? 'Registrar Atestado' : 'Lançar'}
           </button>
         </div>
       </div>

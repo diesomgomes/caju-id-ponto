@@ -4,6 +4,7 @@ from PIL import Image
 from db.supabase_client import supabase
 
 BUCKET = "fotos-ponto"
+BUCKET_ATESTADOS = "atestados"
 MAX_BYTES = 2 * 1024 * 1024
 
 
@@ -43,4 +44,23 @@ def upload_selfie(empresa_id: str, colaborador_id: str, conteudo: bytes) -> str:
 
 def gerar_url_assinada(path: str, expires_in: int = 3600) -> str:
     resp = supabase.storage.from_(BUCKET).create_signed_url(path, expires_in)
+    return resp.get("signedURL") or resp.get("signed_url") or ""
+
+
+def upload_atestado(empresa_id: str, colaborador_id: str, conteudo: bytes, filename: str) -> str:
+    import mimetypes
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "bin"
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%f")
+    path = f"{empresa_id}/{colaborador_id}/{timestamp}.{ext}"
+    mime = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    supabase.storage.from_(BUCKET_ATESTADOS).upload(
+        path=path,
+        file=conteudo,
+        file_options={"content-type": mime, "upsert": "false"},
+    )
+    return path
+
+
+def gerar_url_assinada_atestado(path: str, expires_in: int = 3600) -> str:
+    resp = supabase.storage.from_(BUCKET_ATESTADOS).create_signed_url(path, expires_in)
     return resp.get("signedURL") or resp.get("signed_url") or ""

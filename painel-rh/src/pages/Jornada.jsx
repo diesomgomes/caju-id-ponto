@@ -8,6 +8,7 @@ import {
   getJornadas, getRegistros, getColaboradores, exportarJornadas,
   excluirJornada, excluirRegistro, getFotoUrl, ajustarRegistro, getMe,
   getCalendario, criarRegistroManual, getRelatorio,
+  criarAtestado, getArquivoAtestado, excluirAtestado,
 } from '../api'
 import Portal from '../components/Portal'
 import { IconVer, IconAjustar, IconExcluir } from '../components/IconBtn'
@@ -275,29 +276,50 @@ function ModalNovaBatida({ colaboradores, onClose, onSalvo }) {
     return new Date(now - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
   })
   const [motivo, setMotivo] = useState('')
+  // Campos de atestado
+  const [dataAtestado, setDataAtestado] = useState(() => new Date().toISOString().slice(0, 10))
+  const [qtdDias, setQtdDias] = useState(1)
+  const [arquivo, setArquivo] = useState(null)
+  const [observacao, setObservacao] = useState('')
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
+  const fileRef = { current: null }
+
+  const isAtestado = tipo === 'atestado'
 
   async function salvar() {
     if (!colaboradorId) return setErro('Selecione o colaborador.')
-    if (!motivo.trim()) return setErro('Informe o motivo do lançamento.')
     setLoading(true)
     try {
-      await criarRegistroManual({ colaborador_id: colaboradorId, tipo, registrado_em: new Date(horario).toISOString(), motivo })
+      if (isAtestado) {
+        const form = new FormData()
+        form.append('colaborador_id', colaboradorId)
+        form.append('data_inicio', dataAtestado)
+        form.append('qtd_dias', String(qtdDias))
+        form.append('observacao', observacao)
+        if (arquivo) form.append('arquivo', arquivo)
+        await criarAtestado(form)
+      } else {
+        if (!motivo.trim()) { setLoading(false); return setErro('Informe o motivo do lançamento.') }
+        await criarRegistroManual({ colaborador_id: colaboradorId, tipo, registrado_em: new Date(horario).toISOString(), motivo })
+      }
       onSalvo(); onClose()
     } catch (e) { setErro(e.message) } finally { setLoading(false) }
   }
 
   return (
     <Portal><div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4">
-      <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4" onClick={e => e.stopPropagation()}>
+      <div className="bg-gray-900 rounded-xl p-6 max-w-md w-full space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center">
           <div>
             <h3 className="font-semibold text-gray-100">Nova Batida Manual</h3>
-            <p className="text-xs text-amber-400 mt-0.5">Este registro ficará marcado como lançamento manual.</p>
+            <p className="text-xs text-amber-400 mt-0.5">
+              {isAtestado ? 'Os dias serão marcados como atestado no calendário.' : 'Este registro ficará marcado como lançamento manual.'}
+            </p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-100 text-xl ml-4">×</button>
         </div>
+
         <div>
           <label className="text-sm text-gray-400">Colaborador</label>
           <select value={colaboradorId} onChange={e => setColaboradorId(e.target.value)}
@@ -306,30 +328,75 @@ function ModalNovaBatida({ colaboradores, onClose, onSalvo }) {
             {colaboradores.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
           </select>
         </div>
+
         <div>
           <label className="text-sm text-gray-400">Tipo</label>
           <select value={tipo} onChange={e => setTipo(e.target.value)}
             className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100">
             {TIPOS.slice(1).map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+            <option value="atestado">Atestado</option>
           </select>
         </div>
-        <div>
-          <label className="text-sm text-gray-400">Horário</label>
-          <input type="datetime-local" value={horario} onChange={e => setHorario(e.target.value)}
-            className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100" />
-        </div>
-        <div>
-          <label className="text-sm text-gray-400">Motivo *</label>
-          <textarea value={motivo} onChange={e => setMotivo(e.target.value)} rows={3}
-            className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 resize-none"
-            placeholder="Descreva o motivo do lançamento manual" />
-        </div>
+
+        {isAtestado ? (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm text-gray-400">Data do atestado</label>
+                <input type="date" value={dataAtestado} onChange={e => setDataAtestado(e.target.value)}
+                  className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100" />
+              </div>
+              <div>
+                <label className="text-sm text-gray-400">Quantidade de dias</label>
+                <input type="number" min={1} value={qtdDias} onChange={e => setQtdDias(Math.max(1, Number(e.target.value)))}
+                  className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100" />
+              </div>
+            </div>
+            {qtdDias > 0 && (
+              <p className="text-xs text-blue-400">
+                Período: {new Date(dataAtestado + 'T12:00:00').toLocaleDateString('pt-BR')} até{' '}
+                {new Date(new Date(dataAtestado + 'T12:00:00').getTime() + (qtdDias - 1) * 86400000).toLocaleDateString('pt-BR')}
+              </p>
+            )}
+            <div>
+              <label className="text-sm text-gray-400">Arquivo do atestado (opcional)</label>
+              <input
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+                onChange={e => setArquivo(e.target.files[0] || null)}
+                className="w-full mt-1 text-sm text-gray-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-gray-700 file:text-gray-200 hover:file:bg-gray-600"
+              />
+              {arquivo && <p className="text-xs text-gray-500 mt-1">{arquivo.name}</p>}
+            </div>
+            <div>
+              <label className="text-sm text-gray-400">Observação (opcional)</label>
+              <textarea value={observacao} onChange={e => setObservacao(e.target.value)} rows={2}
+                className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 resize-none text-sm"
+                placeholder="Ex: Consulta médica, cirurgia…" />
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <label className="text-sm text-gray-400">Horário</label>
+              <input type="datetime-local" value={horario} onChange={e => setHorario(e.target.value)}
+                className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100" />
+            </div>
+            <div>
+              <label className="text-sm text-gray-400">Motivo *</label>
+              <textarea value={motivo} onChange={e => setMotivo(e.target.value)} rows={3}
+                className="w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 resize-none"
+                placeholder="Descreva o motivo do lançamento manual" />
+            </div>
+          </>
+        )}
+
         {erro && <p className="text-red-400 text-sm">{erro}</p>}
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 py-2 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700">Cancelar</button>
           <button onClick={salvar} disabled={loading}
-            className="flex-1 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-semibold">
-            {loading ? 'Salvando…' : 'Lançar'}
+            className={`flex-1 py-2 rounded-lg disabled:opacity-50 text-white font-semibold ${isAtestado ? 'bg-blue-600 hover:bg-blue-500' : 'bg-amber-600 hover:bg-amber-500'}`}>
+            {loading ? 'Salvando…' : isAtestado ? 'Registrar Atestado' : 'Lançar'}
           </button>
         </div>
       </div>
@@ -447,12 +514,68 @@ function AbaRegistros({ colaboradores, me }) {
   )
 }
 
+// ── Painel de Atestado ────────────────────────────────────────────────────────
+function PainelAtestado({ atestado, onExcluir }) {
+  const [urlArquivo, setUrlArquivo] = useState(null)
+  const [loadingUrl, setLoadingUrl] = useState(false)
+
+  async function abrirArquivo() {
+    setLoadingUrl(true)
+    try {
+      const d = await getArquivoAtestado(atestado.id)
+      window.open(d.url, '_blank')
+    } catch (e) { alert('Erro ao abrir arquivo.') }
+    finally { setLoadingUrl(false) }
+  }
+
+  return (
+    <div className="bg-blue-950/40 border border-blue-700/40 rounded-xl p-5 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🏥</span>
+            <span className="text-sm font-semibold text-blue-300">Atestado médico</span>
+          </div>
+          <p className="text-xs text-gray-400">
+            Período:{' '}
+            <span className="text-gray-200">
+              {new Date(atestado.data_inicio + 'T12:00:00').toLocaleDateString('pt-BR')}
+              {' '}até{' '}
+              {new Date(atestado.data_fim + 'T12:00:00').toLocaleDateString('pt-BR')}
+              {' '}({atestado.qtd_dias} dia{atestado.qtd_dias !== 1 ? 's' : ''})
+            </span>
+          </p>
+          {atestado.observacao && (
+            <p className="text-xs text-gray-400">
+              Obs: <span className="text-gray-300">{atestado.observacao}</span>
+            </p>
+          )}
+        </div>
+        <button onClick={onExcluir}
+          className="shrink-0 text-xs text-red-400 hover:text-red-300 border border-red-700/50 hover:border-red-500 rounded-lg px-2 py-1 transition-colors">
+          Remover
+        </button>
+      </div>
+      {atestado.arquivo_url && (
+        <button onClick={abrirArquivo} disabled={loadingUrl}
+          className="flex items-center gap-2 text-xs text-blue-400 hover:text-blue-300 border border-blue-700/50 hover:border-blue-500 rounded-lg px-3 py-1.5 transition-colors disabled:opacity-50">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+          </svg>
+          {loadingUrl ? 'Abrindo…' : 'Ver arquivo do atestado'}
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ── Aba Calendário ────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
   ok:                  { cor: 'bg-emerald-500',  texto: 'text-emerald-100', label: 'OK' },
   divergencia:         { cor: 'bg-yellow-500',   texto: 'text-yellow-100',  label: 'Divergência' },
   falta:               { cor: 'bg-red-600',      texto: 'text-red-100',     label: 'Falta' },
   feriado:             { cor: 'bg-gray-600',     texto: 'text-gray-200',    label: 'Feriado' },
+  atestado:            { cor: 'bg-blue-600',     texto: 'text-blue-100',    label: 'Atestado' },
   folga:               { cor: 'bg-transparent',  texto: 'text-gray-700',    label: '' },
   futuro:              { cor: 'bg-transparent',  texto: 'text-gray-600',    label: '' },
   sem_acompanhamento:  { cor: 'bg-transparent',  texto: 'text-gray-400',    label: '' },
@@ -591,6 +714,7 @@ function AbaCalendario({ colaboradores }) {
   async function selecionarDia(dia) {
     if (dia.status === 'folga' || dia.status === 'futuro') return
     setDiaSelecionado(dia)
+    if (dia.status === 'atestado') { setRegistrosDia([]); return }
     setLoadingDia(true)
     try {
       const regs = await getRegistros({ colaborador_id: colaboradorId, data: dia.data })
@@ -614,7 +738,7 @@ function AbaCalendario({ colaboradores }) {
   }
 
   const contagem = dados?.dias?.reduce((acc, d) => {
-    if (['ok','divergencia','falta','feriado'].includes(d.status))
+    if (['ok','divergencia','falta','feriado','atestado'].includes(d.status))
       acc[d.status] = (acc[d.status] || 0) + 1
     return acc
   }, {}) || {}
@@ -695,11 +819,12 @@ function AbaCalendario({ colaboradores }) {
       {colaboradorId && !loading && dados && (
         <>
           {/* Resumo */}
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-5 gap-3">
             {[
               { status: 'ok',          label: 'Dias OK',      cor: 'border-emerald-500 text-emerald-400' },
               { status: 'divergencia', label: 'Divergências', cor: 'border-yellow-500 text-yellow-400'   },
               { status: 'falta',       label: 'Faltas',       cor: 'border-red-500 text-red-400'         },
+              { status: 'atestado',    label: 'Atestados',    cor: 'border-blue-500 text-blue-400'       },
               { status: 'feriado',     label: 'Feriados',     cor: 'border-gray-500 text-gray-400'       },
             ].map(({ status, label, cor }) => (
               <div key={status} className={`bg-gray-900 border-l-4 rounded-xl p-4 ${cor}`}>
@@ -726,7 +851,7 @@ function AbaCalendario({ colaboradores }) {
                   const dNum = new Date(dia.data + 'T12:00:00').getDate()
                   const ehHoje = dia.data === hoje.toISOString().slice(0, 10)
                   const selecionado = diaSelecionado?.data === dia.data
-                  const clicavel = dia.status !== 'folga' && dia.status !== 'futuro' && dia.status !== 'sem_acompanhamento'
+                  const clicavel = !['folga','futuro','sem_acompanhamento'].includes(dia.status)
 
                   return (
                     <div
@@ -752,6 +877,7 @@ function AbaCalendario({ colaboradores }) {
                   { status: 'ok',          label: 'Batidas ok' },
                   { status: 'divergencia', label: 'Divergência' },
                   { status: 'falta',       label: 'Falta' },
+                  { status: 'atestado',    label: 'Atestado' },
                   { status: 'feriado',     label: 'Feriado / folga' },
                 ].map(({ status, label }) => (
                   <div key={status} className="flex items-center gap-2">
@@ -781,26 +907,38 @@ function AbaCalendario({ colaboradores }) {
                       <p className={`text-xs font-semibold mt-0.5 ${
                         diaSelecionado.status === 'ok' ? 'text-emerald-400' :
                         diaSelecionado.status === 'divergencia' ? 'text-yellow-400' :
-                        diaSelecionado.status === 'falta' ? 'text-red-400' : 'text-gray-400'
+                        diaSelecionado.status === 'falta' ? 'text-red-400' :
+                        diaSelecionado.status === 'atestado' ? 'text-blue-400' : 'text-gray-400'
                       }`}>
                         {STATUS_CONFIG[diaSelecionado.status]?.label}
                         {diaSelecionado.divergencias?.length > 0 && ' — ' + diaSelecionado.divergencias.map(d => DIV_LABEL[d] || d).join(', ')}
                       </p>
                     </div>
-                    <span className="text-xs text-gray-500">{registrosDia.length} batida{registrosDia.length !== 1 ? 's' : ''}</span>
+                    {diaSelecionado.status !== 'atestado' && (
+                      <span className="text-xs text-gray-500">{registrosDia.length} batida{registrosDia.length !== 1 ? 's' : ''}</span>
+                    )}
                   </div>
 
-                  {loadingDia && (
+                  {/* Painel de atestado */}
+                  {diaSelecionado.status === 'atestado' && diaSelecionado.atestado && (
+                    <PainelAtestado atestado={diaSelecionado.atestado} onExcluir={async () => {
+                      if (!confirm('Remover este atestado?')) return
+                      try { await excluirAtestado(diaSelecionado.atestado.id); buscar() }
+                      catch (e) { alert(e.message) }
+                    }} />
+                  )}
+
+                  {diaSelecionado.status !== 'atestado' && loadingDia && (
                     <div className="text-center py-10 text-gray-500 text-sm">Carregando registros…</div>
                   )}
 
-                  {!loadingDia && registrosDia.length === 0 && (
+                  {diaSelecionado.status !== 'atestado' && !loadingDia && registrosDia.length === 0 && (
                     <div className="text-center py-10 text-gray-600 text-sm border border-dashed border-gray-800 rounded-xl">
                       Nenhum registro neste dia
                     </div>
                   )}
 
-                  {!loadingDia && registrosDia.length > 0 && (
+                  {diaSelecionado.status !== 'atestado' && !loadingDia && registrosDia.length > 0 && (
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                       {[...registrosDia].sort((a, b) => new Date(a.registrado_em) - new Date(b.registrado_em)).map(r => (
                         <CardRegistro key={r.id} registro={r} onClick={setFotoReg} />
