@@ -1344,6 +1344,10 @@ async def backfill_banco_horas(rh=Depends(get_usuario_rh_atual)):
 
     from datetime import time as dtime
 
+    def _fmt_min(mins: int) -> str:
+        h, m = divmod(abs(mins), 60)
+        return f"{h}h {m}min" if m else f"{h}h"
+
     for reg in registros:
         colab_id = reg["colaborador_id"]
         colab = colabs.get(colab_id)
@@ -1399,15 +1403,15 @@ async def backfill_banco_horas(rh=Depends(get_usuario_rh_atual)):
             if tipo == "entrada":
                 minutos_ajuste = -diff_minutos
                 if diff_minutos > 0:
-                    descricao = f"Entrada atrasada {abs(diff_minutos)} min (previsto {hora_esp_str[:5]})"
+                    descricao = f"Entrada atrasada {_fmt_min(diff_minutos)} (previsto {hora_esp_str[:5]})"
                 else:
-                    descricao = f"Entrada antecipada {abs(diff_minutos)} min (previsto {hora_esp_str[:5]})"
+                    descricao = f"Entrada antecipada {_fmt_min(diff_minutos)} (previsto {hora_esp_str[:5]})"
             else:
                 minutos_ajuste = diff_minutos
                 if diff_minutos > 0:
-                    descricao = f"Saída {abs(diff_minutos)} min depois (previsto {hora_esp_str[:5]})"
+                    descricao = f"Saída {_fmt_min(diff_minutos)} depois (previsto {hora_esp_str[:5]})"
                 else:
-                    descricao = f"Saída antecipada {abs(diff_minutos)} min (previsto {hora_esp_str[:5]})"
+                    descricao = f"Saída antecipada {_fmt_min(diff_minutos)} (previsto {hora_esp_str[:5]})"
 
             # Tenta inserir com todos os campos novos; se falhar por coluna inexistente,
             # insere com campos mínimos (migration ainda não rodada)
