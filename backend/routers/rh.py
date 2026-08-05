@@ -1332,7 +1332,7 @@ async def excluir_dispositivo(disp_id: str, rh=Depends(get_usuario_rh_atual)):
 # ── Download / Upload do APK do Kiosk ─────────────────────────────────────────
 
 import os, zipfile, tempfile
-from fastapi import UploadFile
+from fastapi import File, UploadFile
 
 APK_PATH = os.environ.get("KIOSK_APK_PATH", "/app/downloads/caju-kiosk.apk")
 
