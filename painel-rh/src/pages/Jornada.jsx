@@ -8,7 +8,7 @@ import {
   getJornadas, getRegistros, getColaboradores, exportarJornadas,
   excluirJornada, excluirRegistro, getFotoUrl, ajustarRegistro, getMe,
   getCalendario, criarRegistroManual, getRelatorio,
-  criarAtestado, getArquivoAtestado, excluirAtestado,
+  criarAtestado, getAtestados, getArquivoAtestado, excluirAtestado,
 } from '../api'
 import Portal from '../components/Portal'
 import { IconVer, IconAjustar, IconExcluir } from '../components/IconBtn'
@@ -407,6 +407,7 @@ function ModalNovaBatida({ colaboradores, onClose, onSalvo }) {
 // ── Aba Registros ─────────────────────────────────────────────────────────────
 function AbaRegistros({ colaboradores, me }) {
   const [registros, setRegistros] = useState([])
+  const [atestados, setAtestados] = useState([])
   const [filtros, setFiltros] = useState({ colaborador_id: '', tipo: '', data: '' })
   const [loading, setLoading] = useState(false)
   const [fotoReg, setFotoReg] = useState(null)
@@ -419,7 +420,17 @@ function AbaRegistros({ colaboradores, me }) {
     if (filtros.colaborador_id) params.colaborador_id = filtros.colaborador_id
     if (filtros.tipo) params.tipo = filtros.tipo
     if (filtros.data) params.data = filtros.data
-    try { setRegistros(await getRegistros(params)) } catch (e) { console.error(e) }
+    const mesAtestado = filtros.data ? filtros.data.slice(0, 7) : new Date().toISOString().slice(0, 7)
+    const ateParams = { mes: mesAtestado }
+    if (filtros.colaborador_id) ateParams.colaborador_id = filtros.colaborador_id
+    try {
+      const [regs, ates] = await Promise.all([
+        getRegistros(params),
+        filtros.tipo ? Promise.resolve([]) : getAtestados(ateParams),
+      ])
+      setRegistros(regs)
+      setAtestados(ates)
+    } catch (e) { console.error(e) }
     finally { if (!silencioso) setLoading(false) }
   }
 
@@ -465,44 +476,96 @@ function AbaRegistros({ colaboradores, me }) {
             <tr className="text-gray-400 border-b border-gray-800 text-left">
               <th className="px-4 py-3">Colaborador</th>
               <th className="px-4 py-3">Tipo</th>
-              <th className="px-4 py-3">Horário</th>
+              <th className="px-4 py-3">Horário / Período</th>
               <th className="px-4 py-3">Local</th>
-              <th className="px-4 py-3">Foto</th>
+              <th className="px-4 py-3">Arquivo / Foto</th>
               <th className="px-4 py-3">Ações</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">Carregando…</td></tr>
-            ) : registros.length === 0 ? (
+            ) : registros.length === 0 && atestados.length === 0 ? (
               <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">Nenhum registro encontrado.</td></tr>
-            ) : registros.map(r => (
-              <tr key={r.id} className="border-b border-gray-800/50 text-gray-300 hover:bg-gray-800/30">
-                <td className="px-4 py-3">{r.colaborador_nome}</td>
-                <td className="px-4 py-3">
-                  <span className="capitalize">{r.tipo?.replace(/_/g, ' ')}</span>
-                  {r.origem === 'manual' && (
-                    <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                      manual
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-3">{new Date(r.registrado_em).toLocaleString('pt-BR')}</td>
-                <td className="px-4 py-3 text-gray-500">{r.local_nome || '—'}</td>
-                <td className="px-4 py-3">
-                  {r.foto_url ? <IconVer onClick={() => setFotoReg(r)} /> : <span className="text-gray-600 px-1.5">—</span>}
-                </td>
-                <td className="px-4 py-3 flex gap-1 items-center">
-                  <IconAjustar onClick={() => setAjusteReg(r)} />
-                  {me?.papel === 'admin' && (
-                    <IconExcluir onClick={async () => {
-                      if (!confirm(`Excluir este registro de ${r.colaborador_nome}? Esta ação não pode ser desfeita.`)) return
-                      try { await excluirRegistro(r.id); buscar() } catch (e) { alert(e.message) }
-                    }} />
-                  )}
-                </td>
-              </tr>
-            ))}
+            ) : (
+              <>
+                {atestados.map(a => {
+                  const nomeColab = colaboradores.find(c => c.id === a.colaborador_id)?.nome || '—'
+                  const dInicio = new Date(a.data_inicio + 'T12:00:00').toLocaleDateString('pt-BR')
+                  const dFim    = new Date(a.data_fim    + 'T12:00:00').toLocaleDateString('pt-BR')
+                  return (
+                    <tr key={'at-' + a.id} className="border-b border-gray-800/50 text-gray-300 hover:bg-blue-950/20 bg-blue-950/10">
+                      <td className="px-4 py-3">{nomeColab}</td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                          🏥 Atestado
+                        </span>
+                        {a.observacao && <p className="text-[11px] text-gray-500 mt-0.5 truncate max-w-[140px]">{a.observacao}</p>}
+                      </td>
+                      <td className="px-4 py-3 text-gray-300">
+                        {dInicio === dFim ? dInicio : `${dInicio} a ${dFim}`}
+                        <span className="ml-2 text-xs text-gray-500">({a.qtd_dias} dia{a.qtd_dias !== 1 ? 's' : ''})</span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-500">—</td>
+                      <td className="px-4 py-3">
+                        {a.arquivo_url ? (
+                          <button
+                            onClick={async () => {
+                              try { const d = await getArquivoAtestado(a.id); window.open(d.url, '_blank') }
+                              catch { alert('Erro ao abrir arquivo.') }
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-blue-400 border border-blue-700/50 hover:border-blue-400 hover:text-blue-300 transition-colors"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                            </svg>
+                            Arquivo
+                          </button>
+                        ) : (
+                          <span className="text-gray-600">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {me?.papel === 'admin' && (
+                          <IconExcluir onClick={async () => {
+                            if (!confirm(`Remover atestado de ${nomeColab}?`)) return
+                            try { await excluirAtestado(a.id); buscar() } catch (e) { alert(e.message) }
+                          }} />
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+
+                {registros.map(r => (
+                  <tr key={r.id} className="border-b border-gray-800/50 text-gray-300 hover:bg-gray-800/30">
+                    <td className="px-4 py-3">{r.colaborador_nome}</td>
+                    <td className="px-4 py-3">
+                      <span className="capitalize">{r.tipo?.replace(/_/g, ' ')}</span>
+                      {r.origem === 'manual' && (
+                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                          manual
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">{new Date(r.registrado_em).toLocaleString('pt-BR')}</td>
+                    <td className="px-4 py-3 text-gray-500">{r.local_nome || '—'}</td>
+                    <td className="px-4 py-3">
+                      {r.foto_url ? <IconVer onClick={() => setFotoReg(r)} /> : <span className="text-gray-600 px-1.5">—</span>}
+                    </td>
+                    <td className="px-4 py-3 flex gap-1 items-center">
+                      <IconAjustar onClick={() => setAjusteReg(r)} />
+                      {me?.papel === 'admin' && (
+                        <IconExcluir onClick={async () => {
+                          if (!confirm(`Excluir este registro de ${r.colaborador_nome}? Esta ação não pode ser desfeita.`)) return
+                          try { await excluirRegistro(r.id); buscar() } catch (e) { alert(e.message) }
+                        }} />
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </>
+            )}
           </tbody>
         </table>
       </div>
