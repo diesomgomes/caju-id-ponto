@@ -1403,15 +1403,15 @@ async def backfill_banco_horas(rh=Depends(get_usuario_rh_atual)):
             if tipo == "entrada":
                 minutos_ajuste = -diff_minutos
                 if diff_minutos > 0:
-                    descricao = f"Entrada atrasada {_fmt_min(diff_minutos)} (previsto {hora_esp_str[:5]})"
+                    descricao = f"Entrada atrasada {ts_br.strftime('%H:%M')} (previsto {hora_esp_str[:5]})"
                 else:
-                    descricao = f"Entrada antecipada {_fmt_min(diff_minutos)} (previsto {hora_esp_str[:5]})"
+                    descricao = f"Entrada antecipada {ts_br.strftime('%H:%M')} (previsto {hora_esp_str[:5]})"
             else:
                 minutos_ajuste = diff_minutos
                 if diff_minutos > 0:
-                    descricao = f"Saída {_fmt_min(diff_minutos)} depois (previsto {hora_esp_str[:5]})"
+                    descricao = f"Saída {ts_br.strftime('%H:%M')} além do previsto (previsto {hora_esp_str[:5]})"
                 else:
-                    descricao = f"Saída antecipada {_fmt_min(diff_minutos)} (previsto {hora_esp_str[:5]})"
+                    descricao = f"Saída antecipada {ts_br.strftime('%H:%M')} (previsto {hora_esp_str[:5]})"
 
             # Tenta inserir com todos os campos novos; se falhar por coluna inexistente,
             # insere com campos mínimos (migration ainda não rodada)

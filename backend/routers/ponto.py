@@ -97,22 +97,20 @@ def _criar_ajuste_automatico_banco(
         # entrada antecipada → diff_minutos < 0 → saldo positivo
         # saida atrasada  → diff_minutos > 0 → saldo positivo
         # saida antecipada → diff_minutos < 0 → saldo negativo
-        def _fmt(mins: int) -> str:
-            h, m = divmod(abs(mins), 60)
-            return f"{h}h {m}min" if m else f"{h}h"
+        hora_real = agora_br_sem_seg.strftime("%H:%M")
 
         if tipo == "entrada":
             minutos_ajuste = -diff_minutos
             if diff_minutos > 0:
-                descricao = f"Entrada atrasada {_fmt(diff_minutos)} (previsto {hora_esp_str[:5]})"
+                descricao = f"Entrada atrasada {hora_real} (previsto {hora_esp_str[:5]})"
             else:
-                descricao = f"Entrada antecipada {_fmt(diff_minutos)} (previsto {hora_esp_str[:5]})"
+                descricao = f"Entrada antecipada {hora_real} (previsto {hora_esp_str[:5]})"
         else:  # saida
             minutos_ajuste = diff_minutos
             if diff_minutos > 0:
-                descricao = f"Saída {_fmt(diff_minutos)} depois (previsto {hora_esp_str[:5]})"
+                descricao = f"Saída {hora_real} além do previsto (previsto {hora_esp_str[:5]})"
             else:
-                descricao = f"Saída antecipada {_fmt(diff_minutos)} (previsto {hora_esp_str[:5]})"
+                descricao = f"Saída antecipada {hora_real} (previsto {hora_esp_str[:5]})"
 
         supabase.table("ajustes_banco_horas").insert({
             "colaborador_id": colaborador["id"],
