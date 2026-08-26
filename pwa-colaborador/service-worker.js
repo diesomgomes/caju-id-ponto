@@ -1,4 +1,4 @@
-const CACHE = "ponto-v2";
+const CACHE = "ponto-v3";
 const SHELL = [
   "/", "/index.html",
   "/historico.html", "/saldo.html", "/comprovante.html",

@@ -128,16 +128,6 @@
       return `${neg ? "-" : "+"}${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
     }
 
-    function saldoStyle(s) {
-      if (!s) return "";
-      return s.startsWith("-") ? "color:#dc2626;font-weight:700" : "color:#059669;font-weight:700";
-    }
-
-    function saldoSinal(s) {
-      if (!s) return "—";
-      return (s.startsWith("-") ? "" : "+") + s;
-    }
-
     async function carregar() {
       document.getElementById("label-mes").textContent = formatarMes(mesAtual);
       const conteudo = document.getElementById("conteudo");
@@ -153,7 +143,6 @@
           day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit"
         });
 
-        const totalSaldoMin = dias.reduce((acc, d) => acc + parseHHMM(d.saldo_dia), 0);
         const totalTrabalhadoMin = dias.reduce((acc, d) => acc + parseHHMM(d.horas_trabalhadas), 0);
 
         const tabelaLinhas = dias.map(dia => {
@@ -166,9 +155,8 @@
               <td class="px-3 py-2.5 text-xs font-medium whitespace-nowrap" style="color:#18181b">${dia.data_br}</td>
               <td class="px-3 py-2.5" style="color:#71717a">${batidasStr || '<span class="text-xs" style="color:#dc2626">Sem registro</span>'}</td>
               <td class="px-3 py-2.5 text-center font-mono text-xs" style="color:#18181b">${dia.horas_trabalhadas?.slice(0,5) || "—"}</td>
-              <td class="px-3 py-2.5 text-center font-mono text-xs" style="${saldoStyle(dia.saldo_dia)}">${saldoSinal(dia.saldo_dia?.slice(0,5) || null)}</td>
             </tr>`;
-        }).join("") || `<tr><td colspan="4" class="px-3 py-8 text-center text-sm" style="color:#a1a1aa">Nenhum registro neste mês.</td></tr>`;
+        }).join("") || `<tr><td colspan="3" class="px-3 py-8 text-center text-sm" style="color:#a1a1aa">Nenhum registro neste mês.</td></tr>`;
 
         conteudo.innerHTML = `
           <!-- Cabeçalho -->
@@ -208,15 +196,9 @@
           </div>
 
           <!-- Resumo -->
-          <div class="grid grid-cols-2 gap-3">
-            <div class="card p-4 text-center">
-              <p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#a1a1aa">Total trabalhado</p>
-              <p class="text-2xl font-bold font-mono" style="color:#18181b">${fmtMin(totalTrabalhadoMin).replace("+","")}</p>
-            </div>
-            <div class="card p-4 text-center">
-              <p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#a1a1aa">Saldo do mês</p>
-              <p class="text-2xl font-bold font-mono" style="color:${totalSaldoMin >= 0 ? '#059669' : '#dc2626'}">${fmtMin(totalSaldoMin)}</p>
-            </div>
+          <div class="card p-4 text-center">
+            <p class="text-xs font-semibold uppercase tracking-wider mb-1" style="color:#a1a1aa">Total trabalhado</p>
+            <p class="text-2xl font-bold font-mono" style="color:#18181b">${fmtMin(totalTrabalhadoMin).replace("+","")}</p>
           </div>
 
           <!-- Tabela -->
@@ -227,7 +209,6 @@
                   <th class="px-3 py-3">Data</th>
                   <th class="px-3 py-3">Registros</th>
                   <th class="px-3 py-3 text-center">Trabalhado</th>
-                  <th class="px-3 py-3 text-center">Saldo</th>
                 </tr>
               </thead>
               <tbody>${tabelaLinhas}</tbody>

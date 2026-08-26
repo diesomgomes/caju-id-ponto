@@ -2,10 +2,23 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "backend",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd backend && .venv\\Scripts\\python.exe -m uvicorn main:app --reload --port 8000"],
+      "port": 8000
+    },
+    {
       "name": "pwa-colaborador",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["serve", "pwa-colaborador", "-p", "5173", "--no-clipboard"],
       "port": 5173
+    },
+    {
+      "name": "painel-rh",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "painel-rh", "run", "dev", "--", "--port", "5174", "--host"],
+      "port": 5174,
+      "url": "http://localhost:5174"
     }
   ]
 }

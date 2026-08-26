@@ -8,7 +8,6 @@
   <script src="/config.js"></script>
   <link rel="manifest" href="/manifest.json" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <style>
     * { -webkit-tap-highlight-color: transparent; }
     body { background: #f5f5f7; color: #18181b; font-family: system-ui, -apple-system, sans-serif; }
@@ -30,16 +29,16 @@
     <h1 class="font-bold text-xl" style="color:#18181b">Banco de Horas</h1>
   </div>
 
-  <!-- Cards de saldo -->
-  <div class="px-4 py-4 space-y-3" id="cards-saldo">
+  <!-- Saldo atual -->
+  <div class="px-4 py-4" id="card-saldo">
     <p class="text-center py-10" style="color:#a1a1aa">Carregando...</p>
   </div>
 
-  <!-- Gráfico 7 dias -->
-  <div class="px-4 pb-4">
-    <p class="text-xs font-semibold uppercase tracking-widest mb-3" style="color:#a1a1aa">Últimos 7 dias</p>
-    <div class="card p-4">
-      <canvas id="grafico-7dias" height="160"></canvas>
+  <!-- Registros de ponto -->
+  <div class="px-4 pb-4 flex-1">
+    <p class="text-xs font-semibold uppercase tracking-widest mb-3" style="color:#a1a1aa">Registros de ponto</p>
+    <div id="lista-registros" class="space-y-3">
+      <p class="text-center py-10" style="color:#a1a1aa">Carregando...</p>
     </div>
   </div>
 
@@ -62,8 +61,15 @@
   </div>
 
   <script type="module">
-    import { getToken, getSaldo } from "./src/api.js";
+    import { getToken, getSaldo, getHistorico } from "./src/api.js";
     if (!getToken()) { location.href = "/"; }
+
+    const TIPO_INFO = {
+      entrada:        { label: "Entrada",        emoji: "🟢" },
+      saida_almoco:   { label: "Saída almoço",   emoji: "🟡" },
+      retorno_almoco: { label: "Retorno almoço", emoji: "🔵" },
+      saida:          { label: "Saída",          emoji: "🔴" },
+    };
 
     function fmtSaldo(v) {
       if (v === null || v === undefined || v === "—") return "—";
@@ -71,63 +77,60 @@
       return (s.startsWith("-") ? "" : "+") + s;
     }
 
-    async function carregar() {
-      const container = document.getElementById("cards-saldo");
+    function hora(ts) {
+      return new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    async function carregarSaldo() {
+      const container = document.getElementById("card-saldo");
       try {
         const d = await getSaldo();
-        const itens = [
-          { label: "Hoje",        val: d.hoje,      icon: "📅" },
-          { label: "Esta semana", val: d.semana,    icon: "📆" },
-          { label: "Este mês",    val: d.mes,       icon: "🗓️" },
-          { label: "Acumulado",   val: d.acumulado, icon: "📊" },
-        ];
-        container.innerHTML = `<div class="grid grid-cols-2 gap-3">` + itens.map(it => {
-          const s = String(it.val ?? "—");
-          const positivo = s !== "—" && !s.startsWith("-");
-          const cor = s === "—" ? "#a1a1aa" : positivo ? "#059669" : "#dc2626";
-          const bg  = s === "—" ? "#f4f4f5" : positivo ? "rgba(16,185,129,0.07)" : "rgba(239,68,68,0.07)";
-          const border = s === "—" ? "#e4e4e7" : positivo ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)";
-          return `
-            <div class="card p-4" style="border:1px solid ${border};background:${bg}">
-              <p class="text-xs font-semibold uppercase tracking-wider mb-2" style="color:#a1a1aa">${it.icon} ${it.label}</p>
-              <p class="text-2xl font-bold font-mono" style="color:${cor}">${fmtSaldo(it.val)}</p>
-            </div>`;
-        }).join("") + `</div>`;
-
-        if (d.ultimos_7_dias?.length) {
-          const labels = d.ultimos_7_dias.map(x => x.data_br);
-          const valores = d.ultimos_7_dias.map(x => {
-            const s = x.saldo_dia || "00:00:00";
-            const neg = s.startsWith("-");
-            const [h, m] = s.replace("-", "").split(":");
-            return (parseInt(h) * 60 + parseInt(m)) * (neg ? -1 : 1);
-          });
-          new Chart(document.getElementById("grafico-7dias"), {
-            type: "bar",
-            data: {
-              labels,
-              datasets: [{ data: valores, backgroundColor: valores.map(v => v >= 0 ? "#10b981" : "#ef4444"), borderRadius: 6 }],
-            },
-            options: {
-              responsive: true,
-              plugins: { legend: { display: false } },
-              scales: {
-                x: { ticks: { color: "#a1a1aa", font: { size: 11 } }, grid: { display: false } },
-                y: {
-                  ticks: { color: "#a1a1aa", font: { size: 11 },
-                    callback: v => `${v >= 0 ? "+" : ""}${Math.floor(Math.abs(v)/60)}h${String(Math.abs(v)%60).padStart(2,"0")}` },
-                  grid: { color: "rgba(0,0,0,0.05)" },
-                },
-              },
-            },
-          });
-        }
+        const s = String(d.acumulado ?? "—");
+        const positivo = s !== "—" && !s.startsWith("-");
+        const cor = s === "—" ? "#a1a1aa" : positivo ? "#059669" : "#dc2626";
+        const bg  = s === "—" ? "#f4f4f5" : positivo ? "rgba(16,185,129,0.07)" : "rgba(239,68,68,0.07)";
+        const border = s === "—" ? "#e4e4e7" : positivo ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)";
+        container.innerHTML = `
+          <div class="card p-5 text-center" style="border:1px solid ${border};background:${bg}">
+            <p class="text-xs font-semibold uppercase tracking-wider mb-2" style="color:#a1a1aa">📊 Saldo acumulado</p>
+            <p class="text-4xl font-bold font-mono" style="color:${cor}">${fmtSaldo(d.acumulado)}</p>
+          </div>`;
       } catch (e) {
         container.innerHTML = `<p class="text-center py-10" style="color:#dc2626">${e.message}</p>`;
       }
     }
 
-    carregar();
+    async function carregarRegistros() {
+      const lista = document.getElementById("lista-registros");
+      try {
+        const mesAtual = new Date().toISOString().slice(0, 7);
+        const dados = await getHistorico(mesAtual);
+        if (!dados.dias || dados.dias.length === 0) {
+          lista.innerHTML = `<p class="text-center py-10" style="color:#a1a1aa">Nenhum registro neste mês.</p>`;
+          return;
+        }
+        lista.innerHTML = [...dados.dias].reverse().map(dia => {
+          const batidas = (dia.registros || []).map(r => `
+            <div class="flex justify-between items-center py-1.5" style="border-bottom:1px solid #f4f4f5">
+              <span class="text-sm" style="color:#71717a">${TIPO_INFO[r.tipo]?.emoji || ""} ${TIPO_INFO[r.tipo]?.label || r.tipo}</span>
+              <span class="font-mono font-semibold text-sm" style="color:#18181b">${hora(r.registrado_em)}</span>
+            </div>`).join("");
+
+          return `
+            <div class="card p-4">
+              <div class="flex justify-between items-center mb-2">
+                <p class="font-semibold text-sm" style="color:#18181b">${dia.data_br}</p>
+              </div>
+              ${batidas || `<p class="text-sm" style="color:#dc2626">Sem registros</p>`}
+            </div>`;
+        }).join("");
+      } catch (e) {
+        lista.innerHTML = `<p class="text-center py-10" style="color:#dc2626">${e.message}</p>`;
+      }
+    }
+
+    carregarSaldo();
+    carregarRegistros();
   </script>
 </body>
 </html>

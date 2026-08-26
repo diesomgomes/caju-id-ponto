@@ -4,6 +4,7 @@ import { IconExcluir } from '../components/IconBtn'
 import Portal from '../components/Portal'
 
 const BASE_URL = window.location.origin
+const APP_COLABORADOR_URL = 'https://cajuidapp.vartec.com.br'
 
 function qrUrl(data, size = 180) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(data)}&margin=10&bgcolor=ffffff&color=18181b`
@@ -64,6 +65,7 @@ export default function Dispositivos() {
   const [erro, setErro] = useState('')
   const [modalQR, setModalQR] = useState(null)
   const [copiado, setCopiado] = useState('')
+  const [appUrlCopiado, setAppUrlCopiado] = useState(false)
   const [novaSenha, setNovaSenha] = useState(null)
   const [senhaCopiada, setSenhaCopiada] = useState('')
   const [intervaloRefresh, setIntervaloRefresh] = useState('2')
@@ -122,6 +124,13 @@ export default function Dispositivos() {
     try { await excluirDispositivo(id); carregar() } catch (e) { alert(e.message) }
   }
 
+  function copiarUrlApp() {
+    navigator.clipboard.writeText(APP_COLABORADOR_URL).then(() => {
+      setAppUrlCopiado(true)
+      setTimeout(() => setAppUrlCopiado(false), 2000)
+    })
+  }
+
   function copiarUrl(token) {
     const url = `${BASE_URL}/kiosk/${token}`
     navigator.clipboard.writeText(url).then(() => {
@@ -166,7 +175,7 @@ export default function Dispositivos() {
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-emerald-900/50 border border-emerald-800/50 flex items-center justify-center text-emerald-400">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z"/>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5h3m-6.75 2.25h10.5a1.5 1.5 0 001.5-1.5V3.75a1.5 1.5 0 00-1.5-1.5H6.75a1.5 1.5 0 00-1.5 1.5v16.5a1.5 1.5 0 001.5 1.5z"/>
               </svg>
             </div>
             <div>
@@ -208,6 +217,26 @@ export default function Dispositivos() {
             {msgApk}
           </p>
         )}
+
+        {/* App do Colaborador */}
+        <div className="mt-4 pt-4 border-t border-gray-800 flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-900/50 border border-blue-800/50 flex items-center justify-center text-blue-400">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3"/>
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-200">App do Colaborador</p>
+              <p className="text-xs text-gray-500 mt-0.5 font-mono">{APP_COLABORADOR_URL}</p>
+            </div>
+          </div>
+          <button
+            onClick={copiarUrlApp}
+            className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${appUrlCopiado ? 'border-emerald-500 text-emerald-400 bg-emerald-900/20' : 'border-gray-700 text-gray-400 hover:border-gray-600'}`}>
+            {appUrlCopiado ? '✓ Copiado' : 'Copiar link'}
+          </button>
+        </div>
       </div>
 
       {/* Novo dispositivo */}

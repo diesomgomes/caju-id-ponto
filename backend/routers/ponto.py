@@ -449,17 +449,17 @@ async def saldo_horas(colaborador: dict = Depends(get_colaborador_atual)):
     hoje_regs   = [j for j in jornadas if j["data"] == hoje_br.isoformat()]
     semana_regs = [j for j in jornadas if j["data"] >= inicio_semana.isoformat()]
     mes_regs    = [j for j in jornadas if j["data"] >= inicio_mes.isoformat()]
-    acumulado_base = jornadas[0].get("saldo_acumulado") if jornadas else None
 
-    # Soma ajustes manuais do banco de horas
+    # Saldo do banco de horas = soma de todos os lançamentos em ajustes_banco_horas
+    # (inclui os automáticos gerados por atraso/saída antecipada), igual ao painel RH.
     ajustes = (
         supabase.table("ajustes_banco_horas")
         .select("minutos")
         .eq("colaborador_id", colaborador_id)
         .execute()
     ).data or []
-    total_ajuste = timedelta(minutes=sum(a["minutos"] for a in ajustes))
-    acumulado = timedelta_para_interval(parse_interval(acumulado_base) + total_ajuste) if acumulado_base or total_ajuste != timedelta() else None
+    total_ajuste = sum(a["minutos"] for a in ajustes)
+    acumulado = timedelta_para_interval(timedelta(minutes=total_ajuste)) if ajustes else None
 
     ultimos_7 = []
     for i in range(6, -1, -1):
