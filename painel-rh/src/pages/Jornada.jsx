@@ -1154,7 +1154,6 @@ function AbaBancoHoras({ colaboradores, me }) {
   const [descricao, setDescricao] = useState('')
   const [dataRef, setDataRef] = useState('')
   const [salvando, setSalvando] = useState(false)
-  const [salvandoBloqueio, setSalvandoBloqueio] = useState(false)
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
   const [backfilling, setBackfilling] = useState(false)
@@ -1191,16 +1190,6 @@ function AbaBancoHoras({ colaboradores, me }) {
   }
 
   useEffect(() => { carregarColaborador(colaboradorId) }, [colaboradorId])
-
-  async function toggleBloqueio() {
-    if (!colaborador) return
-    setSalvandoBloqueio(true)
-    try {
-      const novo = !bloqueado
-      await atualizarColaborador(colaborador.id, { banco_horas_bloqueado: novo })
-      setColaborador(c => ({ ...c, banco_horas_bloqueado: novo }))
-    } catch (e) { alert(e.message) } finally { setSalvandoBloqueio(false) }
-  }
 
   async function salvar() {
     if (bloqueado) return
@@ -1291,16 +1280,9 @@ function AbaBancoHoras({ colaboradores, me }) {
                   {bloqueado ? '🔒 Banco de horas bloqueado' : '🔓 Banco de horas ativo'}
                 </p>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  {bloqueado ? 'Nenhum ajuste pode ser adicionado ou removido.' : 'Ajustes manuais permitidos.'}
+                  {bloqueado ? 'Nenhum ajuste pode ser adicionado ou removido.' : 'Ajustes manuais permitidos.'} Para alterar, use o botão de horas extras em Colaboradores.
                 </p>
               </div>
-              <button
-                onClick={toggleBloqueio}
-                disabled={salvandoBloqueio}
-                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50 ${bloqueado ? 'bg-red-600' : 'bg-emerald-500'}`}
-              >
-                <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${bloqueado ? 'translate-x-1' : 'translate-x-6'}`} />
-              </button>
             </div>
 
             {/* Saldo total */}

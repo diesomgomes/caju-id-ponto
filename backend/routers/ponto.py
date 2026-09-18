@@ -12,12 +12,14 @@ logger = logging.getLogger(__name__)
 from auth.deps import get_colaborador_atual
 from db.supabase_client import supabase
 from models.schemas import PontoRegistrarResponse
+from services.banco_horas import criar_ajuste_automatico_banco
 from services.geofencing import encontrar_local_mais_proximo
 from services.hash_chain import calcular_hash
 from services.jornada import atualizar_jornada_dia, parse_interval, timedelta_para_interval
 from services.sequencia import (
     proxima_batida_esperada, validar_sequencia,
     validar_sequencia_fora_jornada, dia_util_para_colaborador,
+    hora_extra_bloqueada, MSG_HORA_EXTRA_BLOQUEADA,
 )
 from services.storage import FotoInvalida, gerar_url_assinada, upload_selfie
 
@@ -25,105 +27,6 @@ router = APIRouter(prefix="/ponto", tags=["ponto"])
 
 TZ_BR = ZoneInfo(os.environ.get("TZ_DEFAULT", "America/Sao_Paulo"))
 TIPOS_VALIDOS = {"entrada", "saida_almoco", "retorno_almoco", "saida"}
-
-
-def _criar_ajuste_automatico_banco(
-    colaborador: dict,
-    empresa_id: str,
-    tipo: str,  # "entrada" ou "saida"
-    agora_utc: datetime,
-    hoje_br: "date",
-) -> None:
-    """
-    Compara o horário real da batida com o horário previsto na jornada.
-    Se a diferença ultrapassar a tolerância configurada, cria um ajuste
-    automático em ajustes_banco_horas com origem='automatico'.
-    Ignora se o colaborador não tiver modelo_jornada associado.
-    Evita duplicatas: não cria mais de um ajuste automático do mesmo tipo no mesmo dia.
-    """
-    try:
-        modelo_id = colaborador.get("modelo_jornada_id")
-        if not modelo_id:
-            return
-
-        mj = supabase.table("modelos_jornada").select(
-            "hora_entrada, hora_saida, tolerancia_entrada_minutos, tolerancia_saida_minutos, horarios_por_dia"
-        ).eq("id", modelo_id).single().execute().data
-        if not mj:
-            return
-
-        # Horário personalizado por dia sobrescreve o padrão
-        _DIAS_KEY = {0: "seg", 1: "ter", 2: "qua", 3: "qui", 4: "sex", 5: "sab", 6: "dom"}
-        dia_key = _DIAS_KEY.get(hoje_br.weekday(), "")
-        horarios_por_dia = mj.get("horarios_por_dia") or {}
-        h_dia = horarios_por_dia.get(dia_key, {}) or {}
-
-        if tipo == "entrada":
-            hora_esp_str = h_dia.get("hora_entrada") or mj.get("hora_entrada")
-            tolerancia = int(mj.get("tolerancia_entrada_minutos") or 5)
-        else:  # saida
-            hora_esp_str = h_dia.get("hora_saida") or mj.get("hora_saida")
-            tolerancia = int(mj.get("tolerancia_saida_minutos") or 5)
-
-        if not hora_esp_str:
-            return
-
-        # Horário previsto na data de hoje (BR)
-        h, m, *_ = hora_esp_str.split(":")
-        from datetime import time
-        hora_esp = datetime.combine(hoje_br, time(int(h), int(m)), tzinfo=TZ_BR)
-
-        # Horário real da batida em horário BR
-        agora_br = agora_utc.astimezone(TZ_BR)
-        agora_br_sem_seg = agora_br.replace(second=0, microsecond=0)
-
-        diff_seconds = (agora_br_sem_seg - hora_esp).total_seconds()
-        diff_minutos = round(diff_seconds / 60)
-
-        if abs(diff_minutos) <= tolerancia:
-            return  # dentro da tolerância, sem ajuste
-
-        # Evita duplicata: verifica se já existe ajuste automático deste tipo hoje
-        existente = supabase.table("ajustes_banco_horas").select("id") \
-            .eq("colaborador_id", colaborador["id"]) \
-            .eq("data_referencia", hoje_br.isoformat()) \
-            .eq("tipo_referencia", tipo) \
-            .eq("origem", "automatico") \
-            .limit(1).execute()
-        if existente.data:
-            return
-
-        # entrada atrasada → diff_minutos > 0 → saldo negativo
-        # entrada antecipada → diff_minutos < 0 → saldo positivo
-        # saida atrasada  → diff_minutos > 0 → saldo positivo
-        # saida antecipada → diff_minutos < 0 → saldo negativo
-        hora_real = agora_br_sem_seg.strftime("%H:%M")
-
-        if tipo == "entrada":
-            minutos_ajuste = -diff_minutos
-            if diff_minutos > 0:
-                descricao = f"Entrada atrasada {hora_real} (previsto {hora_esp_str[:5]})"
-            else:
-                descricao = f"Entrada antecipada {hora_real} (previsto {hora_esp_str[:5]})"
-        else:  # saida
-            minutos_ajuste = diff_minutos
-            if diff_minutos > 0:
-                descricao = f"Saída {hora_real} além do previsto (previsto {hora_esp_str[:5]})"
-            else:
-                descricao = f"Saída antecipada {hora_real} (previsto {hora_esp_str[:5]})"
-
-        supabase.table("ajustes_banco_horas").insert({
-            "colaborador_id": colaborador["id"],
-            "empresa_id": empresa_id,
-            "minutos": minutos_ajuste,
-            "descricao": descricao,
-            "data_referencia": hoje_br.isoformat(),
-            "tipo_referencia": tipo,
-            "origem": "automatico",
-        }).execute()
-
-    except Exception as e:
-        logger.warning("Falha ao criar ajuste automático banco de horas: %s", e)
 
 
 def _limites_dia_utc(dia) -> tuple[str, str]:
@@ -156,6 +59,9 @@ async def _registrar_ponto_impl(request, tipo, lat, lng, foto, colaborador):
 
     empresa_id = colaborador["empresa_id"]
     colaborador_id = colaborador["id"]
+
+    if hora_extra_bloqueada(colaborador, datetime.now(TZ_BR)):
+        raise HTTPException(403, MSG_HORA_EXTRA_BLOQUEADA)
 
     empresa = (
         supabase.table("empresas").select("*").eq("id", empresa_id).execute().data
@@ -276,7 +182,7 @@ async def _registrar_ponto_impl(request, tipo, lat, lng, foto, colaborador):
     inserido = supabase.table("registros_ponto").insert(novo).execute().data[0]
 
     if status_registro == "valido" and tipo in ("entrada", "saida"):
-        _criar_ajuste_automatico_banco(colaborador, empresa_id, tipo, agora_utc, hoje_br)
+        criar_ajuste_automatico_banco(colaborador, empresa_id, tipo, agora_utc, hoje_br, dia_util)
 
     jornada_hoje = None
     if status_registro == "valido" and tipo == "saida":

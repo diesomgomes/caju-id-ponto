@@ -42,11 +42,77 @@ def validar_sequencia_fora_jornada(ultimo_tipo_hoje: "str | None", tipo_novo: st
     return True, None
 
 
+MSG_HORA_EXTRA_BLOQUEADA = "Batida impossibilitada - Hora extra bloqueada"
+
+
+def hora_extra_bloqueada(colaborador: dict, agora_br) -> bool:
+    """
+    True se o colaborador NÃO pode fazer banco de horas (banco_horas_bloqueado)
+    e a batida ocorre depois do fim do expediente (hora_saida + tolerância de saída)
+    em um dia de jornada. Respeita o horário personalizado por dia da semana.
+    """
+    if not colaborador.get("banco_horas_bloqueado") or colaborador.get("hora_extra_liberada"):
+        return False
+    modelo_id = colaborador.get("modelo_jornada_id")
+    if not modelo_id:
+        return False
+    dia = agora_br.date()
+    try:
+        lib = (
+            supabase.table("liberacoes_hora_extra").select("id")
+            .eq("colaborador_id", colaborador["id"])
+            .eq("data_liberada", dia.isoformat())
+            .limit(1).execute()
+        )
+        if lib.data:
+            return False
+    except Exception:
+        pass  # tabela ausente (migration 023 não aplicada): segue com o bloqueio
+    if not dia_util_para_colaborador(colaborador, dia):
+        return False
+    try:
+        mj = (
+            supabase.table("modelos_jornada")
+            .select("hora_saida, tolerancia_saida_minutos, horarios_por_dia")
+            .eq("id", modelo_id)
+            .single()
+            .execute()
+            .data
+        )
+        if not mj:
+            return False
+        dia_key = {v: k for k, v in DIAS_SEMANA_MAP.items()}[dia.weekday()]
+        h_dia = (mj.get("horarios_por_dia") or {}).get(dia_key) or {}
+        hora_saida = h_dia.get("hora_saida") or mj.get("hora_saida")
+        if not hora_saida:
+            return False
+        h, m, *_ = hora_saida.split(":")
+        limite = int(h) * 60 + int(m) + int(mj.get("tolerancia_saida_minutos") or 5)
+        return agora_br.hour * 60 + agora_br.minute > limite
+    except Exception:
+        return False
+
+
+def eh_feriado(empresa_id, dia) -> bool:
+    """True se a data é feriado nacional (empresa_id nulo) ou da empresa."""
+    try:
+        q = supabase.table("feriados").select("id").eq("data", dia.isoformat())
+        if empresa_id:
+            q = q.or_(f"empresa_id.is.null,empresa_id.eq.{empresa_id}")
+        else:
+            q = q.is_("empresa_id", "null")
+        return bool(q.limit(1).execute().data)
+    except Exception:
+        return False
+
+
 def dia_util_para_colaborador(colaborador: dict, dia) -> bool:
     """
-    Retorna True se o dia faz parte da jornada regular do colaborador.
+    Retorna True se o dia faz parte da jornada regular do colaborador (feriado não é dia útil).
     Consulta o modelo_jornada no banco. Padrão: seg-sex.
     """
+    if eh_feriado(colaborador.get("empresa_id"), dia):
+        return False
     modelo_id = colaborador.get("modelo_jornada_id")
     if not modelo_id:
         return dia.weekday() < 5

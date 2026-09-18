@@ -9,9 +9,13 @@ from fastapi import APIRouter, HTTPException
 from db.supabase_client import supabase as sb
 
 logger = logging.getLogger(__name__)
+from services.banco_horas import criar_ajuste_automatico_banco
 from services.hash_chain import calcular_hash
 from services.jornada import atualizar_jornada_dia, parse_interval
-from services.sequencia import proxima_batida_esperada, proxima_batida_fora_jornada, dia_util_para_colaborador
+from services.sequencia import (
+    proxima_batida_esperada, proxima_batida_fora_jornada, dia_util_para_colaborador,
+    hora_extra_bloqueada, MSG_HORA_EXTRA_BLOQUEADA,
+)
 from services.storage import upload_selfie
 
 router = APIRouter(prefix="/kiosk", tags=["kiosk"])
@@ -144,6 +148,9 @@ async def kiosk_ponto(token: str, body: dict):
     )
     ultimo_tipo = ultimo.data[0]["tipo"] if ultimo.data else None
 
+    if hora_extra_bloqueada(colaborador, agora_utc.astimezone(TZ_BR)):
+        raise HTTPException(403, MSG_HORA_EXTRA_BLOQUEADA)
+
     # Verifica se hoje é dia de trabalho do colaborador
     dia_util = dia_util_para_colaborador(colaborador, hoje_br)
 
@@ -209,6 +216,9 @@ async def kiosk_ponto(token: str, body: dict):
     except Exception as e:
         logger.error(f"kiosk_ponto INSERT error: {traceback.format_exc()}")
         raise HTTPException(500, f"Erro ao registrar ponto: {str(e)}")
+
+    if tipo in ("entrada", "saida"):
+        criar_ajuste_automatico_banco(colaborador, empresa_id, tipo, agora_utc, hoje_br, dia_util)
 
     # Atualiza jornada ao registrar qualquer saída
     # - Dia fora da jornada: carga_esperada = 0 → 100% vai para banco de horas

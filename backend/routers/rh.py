@@ -1282,6 +1282,62 @@ async def excluir_ajuste_banco(ajuste_id: str, rh=Depends(get_usuario_rh_atual))
     return {"ok": True}
 
 
+# ── Liberação de hora extra por data ─────────────────────────────────────────
+
+def _colab_da_empresa(colab_id: str, rh: dict) -> dict:
+    ids = _empresa_ids(rh)
+    res = sb.table("colaboradores").select("id, empresa_id").eq("id", colab_id).in_("empresa_id", ids).limit(1).execute()
+    if not res.data:
+        raise HTTPException(404, "Colaborador não encontrado")
+    return res.data[0]
+
+
+@router.get("/colaboradores/{colab_id}/liberacoes-hora-extra")
+async def listar_liberacoes_hora_extra(colab_id: str, rh=Depends(get_usuario_rh_atual)):
+    _colab_da_empresa(colab_id, rh)
+    res = (
+        sb.table("liberacoes_hora_extra")
+        .select("*")
+        .eq("colaborador_id", colab_id)
+        .order("data_liberada", desc=True)
+        .execute()
+    )
+    return res.data or []
+
+
+@router.post("/colaboradores/{colab_id}/liberacoes-hora-extra")
+async def criar_liberacao_hora_extra(colab_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
+    colab = _colab_da_empresa(colab_id, rh)
+    data_liberada = str(body.get("data_liberada") or "").strip()
+    try:
+        date.fromisoformat(data_liberada)
+    except ValueError:
+        raise HTTPException(400, "Data inválida.")
+    existe = (
+        sb.table("liberacoes_hora_extra").select("id")
+        .eq("colaborador_id", colab_id).eq("data_liberada", data_liberada)
+        .limit(1).execute()
+    )
+    if existe.data:
+        raise HTTPException(400, "Já existe liberação para esta data.")
+    sb.table("liberacoes_hora_extra").insert({
+        "colaborador_id": colab_id,
+        "empresa_id": colab["empresa_id"],
+        "data_liberada": data_liberada,
+        "motivo": (str(body.get("motivo") or "").strip() or None),
+        "autorizado_por": rh["id"],
+        "autorizado_por_nome": rh.get("nome") or rh.get("email") or "RH",
+    }).execute()
+    return {"ok": True}
+
+
+@router.delete("/colaboradores/{colab_id}/liberacoes-hora-extra/{liberacao_id}")
+async def excluir_liberacao_hora_extra(colab_id: str, liberacao_id: str, rh=Depends(get_usuario_rh_atual)):
+    _colab_da_empresa(colab_id, rh)
+    sb.table("liberacoes_hora_extra").delete().eq("id", liberacao_id).eq("colaborador_id", colab_id).execute()
+    return {"ok": True}
+
+
 # ── Backfill banco de horas ───────────────────────────────────────────────────
 
 @router.post("/banco-horas/backfill")
@@ -1327,6 +1383,15 @@ async def backfill_banco_horas(rh=Depends(get_usuario_rh_atual)):
     except Exception:
         pass  # coluna ainda não existe — ok, prossegue
 
+    primeira_entrada: dict = {}
+    # Feriados (nacionais + da empresa) por empresa: tratados como dia fora da jornada
+    feriados_por_empresa: dict = {}
+    try:
+        fer_rows = sb.table("feriados").select("empresa_id, data").execute().data or []
+        for eid in {c["empresa_id"] for c in colabs.values()}:
+            feriados_por_empresa[eid] = {f["data"] for f in fer_rows if f["empresa_id"] in (None, eid)}
+    except Exception:
+        pass
     existentes = set()  # zerado pois apagamos tudo acima
 
     # Carrega todos os registros válidos de entrada/saída
@@ -1368,6 +1433,33 @@ async def backfill_banco_horas(rh=Depends(get_usuario_rh_atual)):
             ts_br = ts_utc.astimezone(TZ_BR)
             hoje_br = ts_br.date()
             data_iso = hoje_br.isoformat()
+
+            # Dia fora da jornada: tempo total entrada→saída vira banco positivo
+            dias_ok = {
+                {"seg": 0, "ter": 1, "qua": 2, "qui": 3, "sex": 4, "sab": 5, "dom": 6}.get(d.strip())
+                for d in (mj.get("dias_trabalho") or "seg,ter,qua,qui,sex").split(",")
+            }
+            if hoje_br.weekday() not in dias_ok or data_iso in feriados_por_empresa.get(colab["empresa_id"], set()):
+                if tipo == "entrada":
+                    primeira_entrada.setdefault((colab_id, data_iso), ts_br)
+                    processados -= 1
+                    continue
+                ini = primeira_entrada.get((colab_id, data_iso))
+                mins = round((ts_br.replace(second=0, microsecond=0) - ini.replace(second=0, microsecond=0)).total_seconds() / 60) if ini else 0
+                if mins <= 0 or (colab_id, data_iso, "saida") in existentes:
+                    continue
+                sb.table("ajustes_banco_horas").insert({
+                    "colaborador_id": colab_id,
+                    "empresa_id": colab["empresa_id"],
+                    "minutos": mins,
+                    "descricao": f"Dia fora da jornada: {ini.strftime('%H:%M')}–{ts_br.strftime('%H:%M')} ({_fmt_min(mins)})",
+                    "data_referencia": data_iso,
+                    "tipo_referencia": "saida",
+                    "origem": "automatico",
+                }).execute()
+                existentes.add((colab_id, data_iso, "saida"))
+                criados += 1
+                continue
 
             # Horário personalizado por dia sobrescreve o padrão
             dia_key = _DIAS_KEY.get(hoje_br.weekday(), "")

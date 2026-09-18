@@ -103,7 +103,10 @@ export const criarColaborador = (body) => api('/rh/colaboradores', { method: 'PO
 export const atualizarColaborador = (id, body) => api(`/rh/colaboradores/${id}`, { method: 'PUT', body: JSON.stringify(body) })
 export const excluirColaborador = (id) => api(`/rh/colaboradores/${id}`, { method: 'DELETE' })
 export const alterarSenhaColaborador = (id, senha) => api(`/rh/colaboradores/${id}/senha`, { method: 'PATCH', body: JSON.stringify({ senha }) })
-export const getAjustesBanco = (id) => api(`/rh/colaboradores/${id}/ajuste-banco`)
+export const getLiberacoesHoraExtra = (id) => api(`/rh/colaboradores/${id}/liberacoes-hora-extra`)
+export const criarLiberacaoHoraExtra = (id, body) => api(`/rh/colaboradores/${id}/liberacoes-hora-extra`, { method: 'POST', body: JSON.stringify(body) })
+export const excluirLiberacaoHoraExtra = (id, liberacaoId) => api(`/rh/colaboradores/${id}/liberacoes-hora-extra/${liberacaoId}`, { method: 'DELETE' })
+export const getAjustesBanco =(id) => api(`/rh/colaboradores/${id}/ajuste-banco`)
 export const criarAjusteBanco = (id, body) => api(`/rh/colaboradores/${id}/ajuste-banco`, { method: 'POST', body: JSON.stringify(body) })
 export const excluirAjusteBanco = (ajusteId) => api(`/rh/ajuste-banco/${ajusteId}`, { method: 'DELETE' })
 

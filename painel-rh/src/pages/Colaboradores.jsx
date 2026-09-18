@@ -3,9 +3,124 @@ import {
   getColaboradores, criarColaborador, atualizarColaborador, excluirColaborador,
   getEmpresas, getModelosJornada, getLocais, getLocaisColaborador, setLocaisColaborador,
   alterarSenhaColaborador,
+  getLiberacoesHoraExtra, criarLiberacaoHoraExtra, excluirLiberacaoHoraExtra,
 } from '../api'
 import Portal from '../components/Portal'
-import { IconEditar, IconExcluir, IconJornada, IconLocais, IconSenha, IconQR } from '../components/IconBtn'
+import { IconEditar, IconExcluir, IconJornada, IconLocais, IconSenha, IconQR, IconHoraExtra, IconLiberarData } from '../components/IconBtn'
+
+function hojeLocal() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+const fmtData = (iso) => iso ? iso.split('-').reverse().join('/') : '—'
+
+function ModalLiberarData({ colaborador, onFechar, onAlterado }) {
+  const [bloqueado, setBloqueado] = useState(!!colaborador.banco_horas_bloqueado)
+  const [salvandoBloqueio, setSalvandoBloqueio] = useState(false)
+  const [data, setData] = useState(hojeLocal())
+  const [motivo, setMotivo] = useState('')
+  const [lista, setLista] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [erro, setErro] = useState('')
+
+  const carregar = () => getLiberacoesHoraExtra(colaborador.id).then(setLista).catch(e => setErro(e.message))
+  useEffect(() => { carregar() }, [colaborador.id])
+
+  async function toggleBloqueio() {
+    setSalvandoBloqueio(true)
+    try {
+      const novo = !bloqueado
+      await atualizarColaborador(colaborador.id, { banco_horas_bloqueado: novo })
+      setBloqueado(novo)
+      onAlterado?.()
+    } catch (e) { setErro(e.message) } finally { setSalvandoBloqueio(false) }
+  }
+
+  async function liberar() {
+    if (!data) return setErro('Informe a data.')
+    setErro(''); setLoading(true)
+    try {
+      await criarLiberacaoHoraExtra(colaborador.id, { data_liberada: data, motivo })
+      setMotivo('')
+      await carregar()
+    } catch (e) { setErro(e.message) } finally { setLoading(false) }
+  }
+
+  async function remover(id) {
+    if (!confirm('Remover esta liberação?')) return
+    try { await excluirLiberacaoHoraExtra(colaborador.id, id); await carregar() } catch (e) { alert(e.message) }
+  }
+
+  return (
+    <Portal><div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4">
+      <div className="bg-gray-900 rounded-xl p-6 max-w-lg w-full space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="font-semibold text-gray-100">Horas extras e banco de horas</h3>
+            <p className="text-xs text-gray-500 mt-0.5">{colaborador.nome}</p>
+          </div>
+          <button onClick={onFechar} className="text-gray-400 hover:text-gray-100 text-xl">×</button>
+        </div>
+
+        <div className={`flex items-center justify-between rounded-xl px-4 py-3 border ${bloqueado ? 'bg-red-900/20 border-red-800/50' : 'bg-emerald-900/20 border-emerald-800/50'}`}>
+          <div>
+            <p className={`text-sm font-semibold ${bloqueado ? 'text-red-400' : 'text-emerald-400'}`}>
+              {bloqueado ? '🔒 Banco de horas bloqueado' : '🔓 Banco de horas ativo'}
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {bloqueado
+                ? 'Sem hora extra após o expediente e sem ajustes manuais, exceto nas datas liberadas abaixo.'
+                : 'Hora extra e ajustes manuais permitidos.'}
+            </p>
+          </div>
+          <button onClick={toggleBloqueio} disabled={salvandoBloqueio}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50 ${bloqueado ? 'bg-red-600' : 'bg-emerald-500'}`}>
+            <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${bloqueado ? 'translate-x-1' : 'translate-x-6'}`} />
+          </button>
+        </div>
+
+        <p className="text-xs text-gray-400 -mb-2">Liberar hora extra por data</p>
+        <div>
+          <label className="text-xs text-gray-400 block mb-1">Data liberada</label>
+          <input type="date" value={data} onChange={e => setData(e.target.value)}
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+        </div>
+        <div>
+          <label className="text-xs text-gray-400 block mb-1">Motivo (opcional)</label>
+          <input type="text" value={motivo} onChange={e => setMotivo(e.target.value)}
+            placeholder="Ex.: colaborador avisou por telefone"
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-100 text-sm" />
+        </div>
+        {erro && <p className="text-red-400 text-sm">{erro}</p>}
+        <button onClick={liberar} disabled={loading}
+          className="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold">
+          {loading ? 'Salvando…' : 'Liberar'}
+        </button>
+
+        <div>
+          <p className="text-xs text-gray-400 mb-2">Histórico de liberações</p>
+          {lista.length === 0 ? (
+            <p className="text-gray-500 text-sm">Nenhuma liberação registrada.</p>
+          ) : (
+            <div className="space-y-2">
+              {lista.map(l => (
+                <div key={l.id} className="bg-gray-800 rounded-lg p-3 text-xs text-gray-400 flex justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <p className="text-gray-100 text-sm font-medium">Dia {fmtData(l.data_liberada)}</p>
+                    <p>Autorizado por <span className="text-gray-200">{l.autorizado_por_nome}</span></p>
+                    <p>Registrado em {new Date(l.criado_em).toLocaleString('pt-BR')}</p>
+                    {l.motivo && <p>Motivo: {l.motivo}</p>}
+                  </div>
+                  <button onClick={() => remover(l.id)} className="text-red-400 hover:text-red-300 self-start">Remover</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div></Portal>
+  )
+}
 
 const CAMPOS_VAZIO = { nome: '', cpf: '', pis: '', email: '', cargo: '', departamento: '', empresa_id: '', carga_horaria_diaria: '08:00:00', senha: '', modo_ponto: 'ambos', data_inicio_ponto: '' }
 
@@ -361,6 +476,7 @@ export default function Colaboradores() {
   const [modalLocais, setModalLocais] = useState(null)
   const [modalSenha, setModalSenha] = useState(null)
   const [modalQR, setModalQR] = useState(null)
+  const [modalLiberar, setModalLiberar] = useState(null)
   const [form, setForm] = useState(CAMPOS_VAZIO)
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
@@ -398,6 +514,15 @@ export default function Colaboradores() {
   async function excluir(id) {
     if (!confirm('Confirma exclusão do colaborador?')) return
     try { await excluirColaborador(id); carregar() } catch (e) { alert(e.message) }
+  }
+
+  async function toggleHoraExtra(c) {
+    const novo = !c.hora_extra_liberada
+    const msg = novo
+      ? `Liberar horas extras de ${c.nome} em todos os dias?`
+      : `Voltar a bloquear horas extras de ${c.nome}?`
+    if (!confirm(msg)) return
+    try { await atualizarColaborador(c.id, { hora_extra_liberada: novo }); carregar() } catch (e) { alert(e.message) }
   }
 
   function fmtJornada(c) {
@@ -463,6 +588,8 @@ export default function Colaboradores() {
                     <IconQR onClick={() => setModalQR(c)} />
                     <IconJornada onClick={() => setModalJornada(c)} />
                     <IconLocais onClick={() => setModalLocais(c)} />
+                    <IconHoraExtra ativo={!!c.hora_extra_liberada} onClick={() => toggleHoraExtra(c)} />
+                    <IconLiberarData onClick={() => setModalLiberar(c)} />
                     <IconExcluir onClick={() => excluir(c.id)} />
                   </div>
                 </td>
@@ -493,6 +620,10 @@ export default function Colaboradores() {
 
       {modalQR && (
         <ModalQRColaborador colaborador={modalQR} onFechar={() => setModalQR(null)} />
+      )}
+
+      {modalLiberar && (
+        <ModalLiberarData colaborador={modalLiberar} onFechar={() => setModalLiberar(null)} onAlterado={carregar} />
       )}
 
       {modalLocais && (
