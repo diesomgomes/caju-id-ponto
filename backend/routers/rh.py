@@ -339,6 +339,52 @@ async def get_foto_url(registro_id: str, rh=Depends(get_usuario_rh_atual)):
     return {"url": url}
 
 
+_ORDEM_BATIDA = {"entrada": 0, "saida_almoco": 1, "retorno_almoco": 2, "saida": 3}
+_LABEL_BATIDA = {"entrada": "Entrada", "saida_almoco": "Saída Almoço", "retorno_almoco": "Retorno Almoço", "saida": "Saída"}
+
+
+def _validar_ordem_batida(colaborador_id: str, tipo: str, registrado_em: str, ignorar_id: str | None = None) -> None:
+    """
+    Dentro do mesmo dia (BR) as batidas válidas seguem a ordem entrada → saída almoço →
+    retorno almoço → saída, cada uma no máximo uma vez. Recusa lançamento manual que
+    duplique um tipo já existente ou que fique fora de ordem cronológica.
+    """
+    ts = datetime.fromisoformat(registrado_em.replace("Z", "+00:00"))
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=TZ_BR)
+    ts = ts.astimezone(TZ_BR)
+    dia = ts.date()
+    ini = datetime.combine(dia, datetime.min.time(), tzinfo=TZ_BR).astimezone(timezone.utc).isoformat()
+    fim = datetime.combine(dia, datetime.max.time(), tzinfo=TZ_BR).astimezone(timezone.utc).isoformat()
+    regs = (
+        sb.table("registros_ponto").select("id, tipo, registrado_em")
+        .eq("colaborador_id", colaborador_id).eq("status", "valido")
+        .gte("registrado_em", ini).lte("registrado_em", fim)
+        .execute().data or []
+    )
+    ordem_nova = _ORDEM_BATIDA[tipo]
+    for r in regs:
+        if ignorar_id and r["id"] == ignorar_id:
+            continue
+        r_ts = datetime.fromisoformat(r["registrado_em"].replace("Z", "+00:00"))
+        r_ord = _ORDEM_BATIDA.get(r["tipo"])
+        if r_ord is None:
+            continue
+        hora = r_ts.astimezone(TZ_BR).strftime("%H:%M")
+        if r["tipo"] == tipo:
+            raise HTTPException(
+                400,
+                f"Já existe {_LABEL_BATIDA[tipo]} às {hora} neste dia. "
+                f"Edite essa batida (ex.: trocar o tipo) antes de lançar outra do mesmo tipo.",
+            )
+        if (r_ts < ts and r_ord > ordem_nova) or (r_ts > ts and r_ord < ordem_nova):
+            raise HTTPException(
+                400,
+                f"{_LABEL_BATIDA[tipo]} às {ts.strftime('%H:%M')} fica fora de ordem: "
+                f"já existe {_LABEL_BATIDA[r['tipo']]} às {hora} neste dia.",
+            )
+
+
 @router.post("/registros")
 async def criar_registro_manual(body: dict, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
@@ -359,6 +405,8 @@ async def criar_registro_manual(body: dict, rh=Depends(get_usuario_rh_atual)):
         raise HTTPException(404, "Colaborador não encontrado")
 
     empresa_id = colab.data["empresa_id"]
+
+    _validar_ordem_batida(colaborador_id, tipo, registrado_em)
 
     try:
         res = sb.table("registros_ponto").insert({
@@ -424,6 +472,16 @@ async def ajustar_registro(registro_id: str, body: dict, rh=Depends(get_usuario_
     res = sb.table("registros_ponto").select("empresa_id, tipo, registrado_em").eq("id", registro_id).single().execute()
     if not res.data or res.data["empresa_id"] not in ids:
         raise HTTPException(404, "Registro não encontrado")
+
+    if body.get("tipo") or body.get("registrado_em"):
+        tipo_final = body.get("tipo") or res.data["tipo"]
+        if tipo_final not in _ORDEM_BATIDA:
+            raise HTTPException(400, f"Tipo inválido. Use: {sorted(_ORDEM_BATIDA)}")
+        colab_reg = sb.table("registros_ponto").select("colaborador_id").eq("id", registro_id).single().execute()
+        _validar_ordem_batida(
+            colab_reg.data["colaborador_id"], tipo_final,
+            body.get("registrado_em") or res.data["registrado_em"], ignorar_id=registro_id,
+        )
 
     campos = []
     if body.get("tipo"): campos.append(f"tipo: {res.data['tipo']} → {body['tipo']}")
