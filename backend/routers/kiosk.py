@@ -44,6 +44,12 @@ def _get_device(token: str) -> dict:
     return res.data[0]
 
 
+@router.get("/hora")
+async def kiosk_hora():
+    """Hora do servidor (epoch ms) para o relógio do kiosk se sincronizar."""
+    return {"ms": int(datetime.now(timezone.utc).timestamp() * 1000)}
+
+
 @router.get("/{token}/branding")
 async def kiosk_branding(token: str):
     """Retorna apenas branding público para a tela de PIN."""
@@ -91,6 +97,8 @@ async def kiosk_auth(token: str, body: dict):
 
 @router.post("/{token}/ponto")
 async def kiosk_ponto(token: str, body: dict):
+    # Hora oficial do registro: capturada na chegada, antes das consultas ao banco
+    agora_utc = datetime.now(timezone.utc)
     device = _get_device(token)
     empresa_id = device["empresa_id"]
 
@@ -134,7 +142,6 @@ async def kiosk_ponto(token: str, body: dict):
     colaborador = res.data[0]
     colaborador_id = colaborador["id"]
 
-    agora_utc = datetime.now(timezone.utc)
     hoje_br = agora_utc.astimezone(TZ_BR).date()
 
     ultimo = (
@@ -243,5 +250,5 @@ async def kiosk_ponto(token: str, body: dict):
         "tipo": tipo,
         "tipo_label": TIPO_LABEL.get(tipo, tipo),
         "colaborador": colaborador["nome"],
-        "horario": agora_utc.astimezone(TZ_BR).strftime("%H:%M"),
+        "horario": agora_utc.astimezone(TZ_BR).strftime("%H:%M:%S"),
     }

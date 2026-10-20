@@ -15,6 +15,36 @@ function fmtCpf(v) {
   return d.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2')
 }
 
+// Diferença (ms) entre o relógio do servidor e o do tablet
+let offsetServidor = 0
+
+// Faz algumas medições e usa a de menor latência (mais precisa)
+async function sincronizarRelogio() {
+  let melhor = null
+  for (let i = 0; i < 4; i++) {
+    try {
+      const t0 = Date.now()
+      const r = await fetch(`${API_URL}/kiosk/hora`, { cache: 'no-store', signal: AbortSignal.timeout(5000) })
+      if (!r.ok) continue
+      const { ms } = await r.json()
+      if (!Number.isFinite(ms)) continue
+      const rtt = Date.now() - t0
+      if (!melhor || rtt < melhor.rtt) melhor = { rtt, offset: ms + rtt / 2 - (t0 + rtt) }
+    } catch { /* tenta a próxima medição */ }
+  }
+  if (melhor) offsetServidor = melhor.offset
+}
+
+function Relogio({ className = '' }) {
+  const [agora, setAgora] = useState(() => new Date(Date.now() + offsetServidor))
+  useEffect(() => {
+    const id = setInterval(() => setAgora(new Date(Date.now() + offsetServidor)), 250)
+    return () => clearInterval(id)
+  }, [])
+  const hora = agora.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  return <span className={`font-mono font-bold tabular-nums ${className}`}>{hora}</span>
+}
+
 export default function Kiosk({ token, onResetar }) {
   const [branding, setBranding]     = useState(null)
   const [info, setInfo]             = useState(null)
@@ -192,10 +222,17 @@ export default function Kiosk({ token, onResetar }) {
     return () => { clearInterval(idInfo); clearInterval(idBranding) }
   }, [pinOk, atualizarInfo, buscarBranding])
 
+  // ── Sincroniza o relógio com a hora do servidor ────────────────────────────
+  useEffect(() => {
+    sincronizarRelogio()
+    const id = setInterval(sincronizarRelogio, 300000)
+    return () => clearInterval(id)
+  }, [])
+
   // ── Detectar online/offline do dispositivo ─────────────────────────────────
   useEffect(() => {
     const goOffline = () => setOffline(true)
-    const goOnline  = () => { if (pinOk) atualizarInfo(); else buscarBranding() }
+    const goOnline  = () => { sincronizarRelogio(); if (pinOk) atualizarInfo(); else buscarBranding() }
     window.addEventListener('offline', goOffline)
     window.addEventListener('online', goOnline)
     return () => {
@@ -409,10 +446,9 @@ export default function Kiosk({ token, onResetar }) {
           <div className="min-w-0">
             <p className="text-white text-sm font-bold leading-tight truncate">{info?.empresa?.nome}</p>
             <p className="text-white/50 text-xs truncate">{info?.dispositivo?.nome}</p>
-          </div>
-        </div>
+          </div>        </div>
         {/* Linha 2: botões QR / CPF */}
-        {fase === 'scan' && !mostrarCpf && (
+        {fase === 'scan' && (
           <div className="flex gap-2">
             <button
               onClick={() => { setModo('qr'); resetar() }}
@@ -451,6 +487,14 @@ export default function Kiosk({ token, onResetar }) {
             <span className="absolute -bottom-1 -right-1 w-7 h-7 border-b-4 border-r-4 border-white rounded-br-lg" />
           </div>
           <p className="text-white/70 text-sm mt-5 font-medium">Aponte o QR Code do colaborador</p>
+          <Relogio className="text-white text-5xl mt-6 drop-shadow-lg" />
+        </div>
+      )}
+
+      {/* Marca d'água do relógio enquanto o teclado de CPF está aberto */}
+      {mostrarCpf && fase === 'scan' && (
+        <div className="absolute inset-x-0 top-[35%] z-10 flex justify-center pointer-events-none">
+          <Relogio className="text-white/40 text-6xl drop-shadow-lg" />
         </div>
       )}
 
@@ -463,6 +507,7 @@ export default function Kiosk({ token, onResetar }) {
           <p className="text-white font-bold text-xl mt-3">{colaborador.nome}</p>
           {colaborador.cargo && <p className="text-white/50 text-sm">{colaborador.cargo}</p>}
           <p className="text-white/40 text-xs mt-2">Olhe para a câmera</p>
+          <Relogio className="text-white/90 text-4xl mt-6" />
         </div>
       )}
 
