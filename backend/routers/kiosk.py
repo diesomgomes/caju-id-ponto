@@ -45,13 +45,13 @@ def _get_device(token: str) -> dict:
 
 
 @router.get("/hora")
-async def kiosk_hora():
+def kiosk_hora():
     """Hora do servidor (epoch ms) para o relógio do kiosk se sincronizar."""
     return {"ms": int(datetime.now(timezone.utc).timestamp() * 1000)}
 
 
 @router.get("/{token}/branding")
-async def kiosk_branding(token: str):
+def kiosk_branding(token: str):
     """Retorna apenas branding público para a tela de PIN."""
     device = _get_device(token)
     emp = sb.table("empresas").select("nome, logo_url, login_config").eq("id", device["empresa_id"]).limit(1).execute()
@@ -67,7 +67,7 @@ async def kiosk_branding(token: str):
 
 
 @router.post("/{token}/auth")
-async def kiosk_auth(token: str, body: dict):
+def kiosk_auth(token: str, body: dict):
     """Valida senha e retorna dados completos do dispositivo."""
     device = _get_device(token)
     senha_informada = str(body.get("senha", "")).strip()
@@ -96,7 +96,7 @@ async def kiosk_auth(token: str, body: dict):
 
 
 @router.post("/{token}/ponto")
-async def kiosk_ponto(token: str, body: dict):
+def kiosk_ponto(token: str, body: dict):
     # Hora oficial do registro: capturada na chegada, antes das consultas ao banco
     agora_utc = datetime.now(timezone.utc)
     device = _get_device(token)

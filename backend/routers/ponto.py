@@ -217,7 +217,7 @@ async def _registrar_ponto_impl(request, tipo, lat, lng, foto, colaborador):
 
 
 @router.get("/status")
-async def status_ponto(colaborador: dict = Depends(get_colaborador_atual)):
+def status_ponto(colaborador: dict = Depends(get_colaborador_atual)):
     colaborador_id = colaborador["id"]
     agora_utc = datetime.now(timezone.utc)
     hoje_br = agora_utc.astimezone(TZ_BR).date()
@@ -250,7 +250,7 @@ async def status_ponto(colaborador: dict = Depends(get_colaborador_atual)):
 
 
 @router.get("/historico")
-async def historico_ponto(mes: str, colaborador: dict = Depends(get_colaborador_atual)):
+def historico_ponto(mes: str, colaborador: dict = Depends(get_colaborador_atual)):
     """Histórico mensal. mes = 'YYYY-MM'"""
     try:
         ano, m = mes.split("-")
@@ -307,7 +307,7 @@ async def historico_ponto(mes: str, colaborador: dict = Depends(get_colaborador_
 
 
 @router.get("/perfil")
-async def get_perfil(colaborador: dict = Depends(get_colaborador_atual)):
+def get_perfil(colaborador: dict = Depends(get_colaborador_atual)):
     empresa = (
         supabase.table("empresas")
         .select("*")
@@ -329,7 +329,7 @@ async def get_perfil(colaborador: dict = Depends(get_colaborador_atual)):
 
 
 @router.get("/saldo")
-async def saldo_horas(colaborador: dict = Depends(get_colaborador_atual)):
+def saldo_horas(colaborador: dict = Depends(get_colaborador_atual)):
     colaborador_id = colaborador["id"]
     agora_utc = datetime.now(timezone.utc)
     hoje_br = agora_utc.astimezone(TZ_BR).date()

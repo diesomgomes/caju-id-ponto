@@ -9,6 +9,7 @@ from services.jornada import atualizar_jornada_dia, parse_interval
 TZ_BR = ZoneInfo("America/Sao_Paulo")
 import csv
 import io
+from concurrent.futures import ThreadPoolExecutor
 import httpx
 import logging
 
@@ -29,7 +30,7 @@ def _empresa_ids(rh: dict) -> list[str]:
 # ─── Empresas ────────────────────────────────────────────────────────────────
 
 @router.get("/empresas")
-async def listar_empresas(rh=Depends(get_usuario_rh_atual)):
+def listar_empresas(rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     if not ids:
         return []
@@ -38,7 +39,7 @@ async def listar_empresas(rh=Depends(get_usuario_rh_atual)):
 
 
 @router.post("/empresas")
-async def criar_empresa(body: dict, rh=Depends(get_usuario_rh_atual)):
+def criar_empresa(body: dict, rh=Depends(get_usuario_rh_atual)):
     if rh.get("papel") != "admin":
         raise HTTPException(403, "Apenas administradores podem criar empresas")
     payload = {k: v for k, v in body.items() if k not in ("id", "criado_em")}
@@ -53,7 +54,7 @@ async def criar_empresa(body: dict, rh=Depends(get_usuario_rh_atual)):
 
 
 @router.put("/empresas/{empresa_id}")
-async def atualizar_empresa(empresa_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
+def atualizar_empresa(empresa_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
     if empresa_id not in _empresa_ids(rh):
         raise HTTPException(403, "Sem acesso a esta empresa")
     body.pop("id", None); body.pop("criado_em", None)
@@ -67,7 +68,7 @@ async def atualizar_empresa(empresa_id: str, body: dict, rh=Depends(get_usuario_
 
 
 @router.delete("/empresas/{empresa_id}")
-async def excluir_empresa(empresa_id: str, rh=Depends(get_usuario_rh_atual)):
+def excluir_empresa(empresa_id: str, rh=Depends(get_usuario_rh_atual)):
     if rh.get("papel") != "admin":
         raise HTTPException(403, "Apenas administradores podem excluir empresas")
     if empresa_id not in _empresa_ids(rh):
@@ -79,9 +80,10 @@ async def excluir_empresa(empresa_id: str, rh=Depends(get_usuario_rh_atual)):
 # ─── Dashboard ───────────────────────────────────────────────────────────────
 
 @router.get("/dashboard")
-async def dashboard(rh=Depends(get_usuario_rh_atual)):
+def dashboard(rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
-    hoje = date.today().isoformat()
+    hoje_dt = datetime.now(TZ_BR).date()
+    hoje = hoje_dt.isoformat()
 
     if not ids:
         return {
@@ -90,24 +92,35 @@ async def dashboard(rh=Depends(get_usuario_rh_atual)):
             "registros_7dias": [], "ultimos_registros": [],
         }
 
-    total_colab = sb.table("colaboradores").select("id", count="exact").in_("empresa_id", ids).eq("ativo", True).execute()
-    regs_hoje = sb.table("registros_ponto").select("id, tipo, registrado_em, colaborador_id", count="exact") \
-        .in_("empresa_id", ids).gte("registrado_em", hoje + "T00:00:00").lte("registrado_em", hoje + "T23:59:59").execute()
+    dias = [(hoje_dt - timedelta(days=i)).isoformat() for i in range(6, -1, -1)]
 
-    sete_dias = []
-    for i in range(6, -1, -1):
-        d = (date.today() - timedelta(days=i)).isoformat()
-        r = sb.table("registros_ponto").select("id", count="exact") \
-            .in_("empresa_id", ids).gte("registrado_em", d + "T00:00:00").lte("registrado_em", d + "T23:59:59").execute()
-        sete_dias.append({"data": d, "total": r.count or 0})
+    def q_total_colab():
+        return sb.table("colaboradores").select("id", count="exact").in_("empresa_id", ids).eq("ativo", True).execute()
 
-    ultimos_raw = sb.table("registros_ponto").select("id, tipo, registrado_em, foto_url, colaborador_id") \
-        .in_("empresa_id", ids).order("registrado_em", desc=True).limit(10).execute()
-    ids_colab = list({r["colaborador_id"] for r in (ultimos_raw.data or [])})
-    nomes = {}
-    if ids_colab:
-        cn = sb.table("colaboradores").select("id, nome").in_("id", ids_colab).execute()
-        nomes = {c["id"]: c["nome"] for c in (cn.data or [])}
+    def q_regs_hoje():
+        return sb.table("registros_ponto").select("id, tipo, registrado_em, colaborador_id", count="exact")             .in_("empresa_id", ids).gte("registrado_em", hoje + "T00:00:00").lte("registrado_em", hoje + "T23:59:59").execute()
+
+    def q_dia(d):
+        return sb.table("registros_ponto").select("id", count="exact")             .in_("empresa_id", ids).gte("registrado_em", d + "T00:00:00").lte("registrado_em", d + "T23:59:59").execute()
+
+    def q_ultimos():
+        raw = sb.table("registros_ponto").select("id, tipo, registrado_em, foto_url, colaborador_id")             .in_("empresa_id", ids).order("registrado_em", desc=True).limit(10).execute()
+        ids_colab = list({r["colaborador_id"] for r in (raw.data or [])})
+        nomes = {}
+        if ids_colab:
+            cn = sb.table("colaboradores").select("id, nome").in_("id", ids_colab).execute()
+            nomes = {c["id"]: c["nome"] for c in (cn.data or [])}
+        return raw, nomes
+
+    # As consultas são independentes: roda todas em paralelo
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        f_total = pool.submit(q_total_colab)
+        f_hoje = pool.submit(q_regs_hoje)
+        f_dias = [pool.submit(q_dia, d) for d in dias]
+        f_ultimos = pool.submit(q_ultimos)
+        total_colab, regs_hoje = f_total.result(), f_hoje.result()
+        sete_dias = [{"data": d, "total": f.result().count or 0} for d, f in zip(dias, f_dias)]
+        ultimos_raw, nomes = f_ultimos.result()
 
     ultimos = [{**r, "colaborador_nome": nomes.get(r["colaborador_id"], "—"), "local_nome": None}
                for r in (ultimos_raw.data or [])]
@@ -125,7 +138,7 @@ async def dashboard(rh=Depends(get_usuario_rh_atual)):
 # ─── Colaboradores ───────────────────────────────────────────────────────────
 
 @router.get("/colaboradores")
-async def listar_colaboradores(
+def listar_colaboradores(
     empresa_id: Optional[str] = None,
     rh=Depends(get_usuario_rh_atual),
 ):
@@ -138,7 +151,7 @@ async def listar_colaboradores(
 
 
 @router.get("/colaboradores/{colab_id}")
-async def get_colaborador(colab_id: str, rh=Depends(get_usuario_rh_atual)):
+def get_colaborador(colab_id: str, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     res = sb.table("colaboradores").select("*").eq("id", colab_id).in_("empresa_id", ids).single().execute()
     if not res.data:
@@ -147,7 +160,7 @@ async def get_colaborador(colab_id: str, rh=Depends(get_usuario_rh_atual)):
 
 
 @router.post("/colaboradores")
-async def criar_colaborador(body: dict, rh=Depends(get_usuario_rh_atual)):
+def criar_colaborador(body: dict, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     empresa = body.get("empresa_id") or rh["empresa_id"]
     if empresa not in ids:
@@ -187,7 +200,7 @@ async def criar_colaborador(body: dict, rh=Depends(get_usuario_rh_atual)):
 
 
 @router.patch("/colaboradores/{colab_id}/senha")
-async def alterar_senha_colaborador(colab_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
+def alterar_senha_colaborador(colab_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     senha = body.get("senha", "").strip()
     if not senha or len(senha) < 6:
@@ -220,7 +233,7 @@ async def alterar_senha_colaborador(colab_id: str, body: dict, rh=Depends(get_us
 
 
 @router.put("/colaboradores/{colab_id}")
-async def atualizar_colaborador(colab_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
+def atualizar_colaborador(colab_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     body.pop("id", None); body.pop("empresa_id", None)
     try:
@@ -233,7 +246,7 @@ async def atualizar_colaborador(colab_id: str, body: dict, rh=Depends(get_usuari
 
 
 @router.delete("/colaboradores/{colab_id}")
-async def excluir_colaborador(colab_id: str, rh=Depends(get_usuario_rh_atual)):
+def excluir_colaborador(colab_id: str, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     # Busca o auth_user_id antes de desativar
     res = sb.table("colaboradores").select("auth_user_id").eq("id", colab_id).in_("empresa_id", ids).limit(1).execute()
@@ -251,7 +264,7 @@ async def excluir_colaborador(colab_id: str, rh=Depends(get_usuario_rh_atual)):
 # ─── Registros ───────────────────────────────────────────────────────────────
 
 @router.get("/registros")
-async def listar_registros(
+def listar_registros(
     colaborador_id: Optional[str] = None,
     tipo: Optional[str] = None,
     data: Optional[str] = None,
@@ -325,7 +338,7 @@ async def listar_registros(
 
 
 @router.get("/registros/{registro_id}/foto")
-async def get_foto_url(registro_id: str, rh=Depends(get_usuario_rh_atual)):
+def get_foto_url(registro_id: str, rh=Depends(get_usuario_rh_atual)):
     from services.storage import gerar_url_assinada
     ids = _empresa_ids(rh)
     res = sb.table("registros_ponto").select("foto_url, empresa_id").eq("id", registro_id).single().execute()
@@ -386,7 +399,7 @@ def _validar_ordem_batida(colaborador_id: str, tipo: str, registrado_em: str, ig
 
 
 @router.post("/registros")
-async def criar_registro_manual(body: dict, rh=Depends(get_usuario_rh_atual)):
+def criar_registro_manual(body: dict, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     colaborador_id = body.get("colaborador_id", "").strip()
     tipo = body.get("tipo", "").strip()
@@ -451,7 +464,7 @@ async def criar_registro_manual(body: dict, rh=Depends(get_usuario_rh_atual)):
 
 
 @router.delete("/registros/{registro_id}")
-async def excluir_registro(registro_id: str, rh=Depends(get_usuario_rh_atual)):
+def excluir_registro(registro_id: str, rh=Depends(get_usuario_rh_atual)):
     if rh.get("papel") != "admin":
         raise HTTPException(403, "Apenas administradores podem excluir registros")
     ids = _empresa_ids(rh)
@@ -467,7 +480,7 @@ async def excluir_registro(registro_id: str, rh=Depends(get_usuario_rh_atual)):
 
 
 @router.post("/registros/{registro_id}/ajuste")
-async def ajustar_registro(registro_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
+def ajustar_registro(registro_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     res = sb.table("registros_ponto").select("empresa_id, tipo, registrado_em").eq("id", registro_id).single().execute()
     if not res.data or res.data["empresa_id"] not in ids:
@@ -525,7 +538,7 @@ async def ajustar_registro(registro_id: str, body: dict, rh=Depends(get_usuario_
 # ─── Jornadas ────────────────────────────────────────────────────────────────
 
 @router.get("/jornadas")
-async def listar_jornadas(
+def listar_jornadas(
     mes: str = Query(..., description="YYYY-MM"),
     colaborador_id: Optional[str] = None,
     empresa_id: Optional[str] = None,
@@ -590,7 +603,7 @@ async def listar_jornadas(
 
 
 @router.delete("/jornadas/{jornada_id}")
-async def excluir_jornada(jornada_id: str, rh=Depends(get_usuario_rh_atual)):
+def excluir_jornada(jornada_id: str, rh=Depends(get_usuario_rh_atual)):
     if rh.get("papel") != "admin":
         raise HTTPException(403, "Apenas administradores podem excluir jornadas")
     ids = _empresa_ids(rh)
@@ -638,7 +651,7 @@ async def exportar_jornadas(
 # ─── Perfil do usuário logado ────────────────────────────────────────────────
 
 @router.get("/me")
-async def get_me(rh=Depends(get_usuario_rh_atual)):
+def get_me(rh=Depends(get_usuario_rh_atual)):
     empresa = sb.table("empresas").select("nome").eq("id", rh["empresa_id"]).single().execute()
     return {
         "id": rh["id"],
@@ -653,7 +666,7 @@ async def get_me(rh=Depends(get_usuario_rh_atual)):
 # ─── Usuários RH ─────────────────────────────────────────────────────────────
 
 @router.get("/usuarios")
-async def listar_usuarios(rh=Depends(get_usuario_rh_atual)):
+def listar_usuarios(rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     if not ids:
         return []
@@ -662,7 +675,7 @@ async def listar_usuarios(rh=Depends(get_usuario_rh_atual)):
 
 
 @router.post("/usuarios")
-async def criar_usuario(body: dict, rh=Depends(get_usuario_rh_atual)):
+def criar_usuario(body: dict, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     empresa = body.get("empresa_id") or rh["empresa_id"]
     if empresa not in ids:
@@ -704,7 +717,7 @@ async def criar_usuario(body: dict, rh=Depends(get_usuario_rh_atual)):
 
 
 @router.put("/usuarios/{usuario_id}")
-async def atualizar_usuario(usuario_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
+def atualizar_usuario(usuario_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     res = sb.table("usuarios_rh").select("auth_user_id, empresa_id, papel").eq("id", usuario_id).single().execute()
     if not res.data or res.data["empresa_id"] not in ids:
@@ -735,7 +748,7 @@ async def atualizar_usuario(usuario_id: str, body: dict, rh=Depends(get_usuario_
 
 
 @router.delete("/usuarios/{usuario_id}")
-async def excluir_usuario(usuario_id: str, rh=Depends(get_usuario_rh_atual)):
+def excluir_usuario(usuario_id: str, rh=Depends(get_usuario_rh_atual)):
     if rh["id"] == usuario_id:
         raise HTTPException(400, "Não é possível excluir o próprio usuário")
     ids = _empresa_ids(rh)
@@ -758,7 +771,7 @@ async def excluir_usuario(usuario_id: str, rh=Depends(get_usuario_rh_atual)):
 # ─── Modelos de Jornada ──────────────────────────────────────────────────────
 
 @router.get("/modelos-jornada")
-async def listar_modelos_jornada(empresa_id: Optional[str] = None, rh=Depends(get_usuario_rh_atual)):
+def listar_modelos_jornada(empresa_id: Optional[str] = None, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     if not ids:
         return []
@@ -768,7 +781,7 @@ async def listar_modelos_jornada(empresa_id: Optional[str] = None, rh=Depends(ge
 
 
 @router.post("/modelos-jornada")
-async def criar_modelo_jornada(body: dict, rh=Depends(get_usuario_rh_atual)):
+def criar_modelo_jornada(body: dict, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     empresa = body.get("empresa_id") or rh["empresa_id"]
     if empresa not in ids:
@@ -785,7 +798,7 @@ async def criar_modelo_jornada(body: dict, rh=Depends(get_usuario_rh_atual)):
 
 
 @router.put("/modelos-jornada/{modelo_id}")
-async def atualizar_modelo_jornada(modelo_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
+def atualizar_modelo_jornada(modelo_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     body.pop("id", None); body.pop("empresa_id", None); body.pop("criado_em", None)
     try:
@@ -798,7 +811,7 @@ async def atualizar_modelo_jornada(modelo_id: str, body: dict, rh=Depends(get_us
 
 
 @router.delete("/modelos-jornada/{modelo_id}")
-async def excluir_modelo_jornada(modelo_id: str, rh=Depends(get_usuario_rh_atual)):
+def excluir_modelo_jornada(modelo_id: str, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     sb.table("modelos_jornada").update({"ativo": False}).eq("id", modelo_id).in_("empresa_id", ids).execute()
     return {"ok": True}
@@ -807,7 +820,7 @@ async def excluir_modelo_jornada(modelo_id: str, rh=Depends(get_usuario_rh_atual
 # ─── Locais por colaborador ───────────────────────────────────────────────────
 
 @router.get("/colaboradores/{colab_id}/locais")
-async def get_locais_colaborador(colab_id: str, rh=Depends(get_usuario_rh_atual)):
+def get_locais_colaborador(colab_id: str, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     colab = sb.table("colaboradores").select("id").eq("id", colab_id).in_("empresa_id", ids).execute()
     if not colab.data:
@@ -817,7 +830,7 @@ async def get_locais_colaborador(colab_id: str, rh=Depends(get_usuario_rh_atual)
 
 
 @router.put("/colaboradores/{colab_id}/locais")
-async def set_locais_colaborador(colab_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
+def set_locais_colaborador(colab_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     colab = sb.table("colaboradores").select("id").eq("id", colab_id).in_("empresa_id", ids).execute()
     if not colab.data:
@@ -833,7 +846,7 @@ async def set_locais_colaborador(colab_id: str, body: dict, rh=Depends(get_usuar
 # ─── Locais ──────────────────────────────────────────────────────────────────
 
 @router.get("/locais")
-async def listar_locais(empresa_id: Optional[str] = None, rh=Depends(get_usuario_rh_atual)):
+def listar_locais(empresa_id: Optional[str] = None, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     if not ids:
         return []
@@ -843,7 +856,7 @@ async def listar_locais(empresa_id: Optional[str] = None, rh=Depends(get_usuario
 
 
 @router.post("/locais")
-async def criar_local(body: dict, rh=Depends(get_usuario_rh_atual)):
+def criar_local(body: dict, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     empresa = body.get("empresa_id") or rh["empresa_id"]
     if empresa not in ids:
@@ -859,7 +872,7 @@ async def criar_local(body: dict, rh=Depends(get_usuario_rh_atual)):
 
 
 @router.put("/locais/{local_id}")
-async def atualizar_local(local_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
+def atualizar_local(local_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     body.pop("id", None); body.pop("empresa_id", None)
     try:
@@ -872,7 +885,7 @@ async def atualizar_local(local_id: str, body: dict, rh=Depends(get_usuario_rh_a
 
 
 @router.delete("/locais/{local_id}")
-async def excluir_local(local_id: str, rh=Depends(get_usuario_rh_atual)):
+def excluir_local(local_id: str, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     sb.table("locais_permitidos").delete().eq("id", local_id).in_("empresa_id", ids).execute()
     return {"ok": True}
@@ -881,7 +894,7 @@ async def excluir_local(local_id: str, rh=Depends(get_usuario_rh_atual)):
 # ─── Feriados ─────────────────────────────────────────────────────────────────
 
 @router.get("/feriados")
-async def listar_feriados(ano: int = Query(default=None), rh=Depends(get_usuario_rh_atual)):
+def listar_feriados(ano: int = Query(default=None), rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     ano = ano or date.today().year
     inicio = f"{ano}-01-01"
@@ -896,7 +909,7 @@ async def listar_feriados(ano: int = Query(default=None), rh=Depends(get_usuario
 
 
 @router.post("/feriados")
-async def criar_feriado(body: dict, rh=Depends(get_usuario_rh_atual)):
+def criar_feriado(body: dict, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     empresa = body.get("empresa_id") or rh.get("empresa_id")
     if empresa not in ids:
@@ -915,7 +928,7 @@ async def criar_feriado(body: dict, rh=Depends(get_usuario_rh_atual)):
 
 
 @router.delete("/feriados/{feriado_id}")
-async def excluir_feriado(feriado_id: str, rh=Depends(get_usuario_rh_atual)):
+def excluir_feriado(feriado_id: str, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     res = sb.table("feriados").select("empresa_id, tipo").eq("id", feriado_id).single().execute()
     if not res.data:
@@ -954,7 +967,7 @@ DIAS_SEMANA_MAP = {"seg": 0, "ter": 1, "qua": 2, "qui": 3, "sex": 4, "sab": 5, "
 
 
 @router.get("/calendario")
-async def get_calendario(
+def get_calendario(
     colaborador_id: str,
     mes: str = Query(..., description="AAAA-MM"),
     rh=Depends(get_usuario_rh_atual),
@@ -1165,7 +1178,7 @@ async def get_calendario(
 # ── Relatório mensal ──────────────────────────────────────────────────────────
 
 @router.get("/relatorio")
-async def get_relatorio(
+def get_relatorio(
     mes: str = Query(..., description="AAAA-MM"),
     colaborador_id: Optional[str] = None,
     rh=Depends(get_usuario_rh_atual),
@@ -1265,7 +1278,7 @@ async def get_relatorio(
 # ── Configuração visual da tela de login ──────────────────────────────────────
 
 @router.get("/login-config")
-async def get_login_config():
+def get_login_config():
     """Endpoint público — não requer autenticação."""
     res = sb.table("empresas").select("id, nome, logo_url, login_config").eq("ativo", True).limit(1).execute()
     if not res.data:
@@ -1278,7 +1291,7 @@ async def get_login_config():
 
 
 @router.patch("/login-config")
-async def salvar_login_config(body: dict, rh=Depends(get_usuario_rh_atual)):
+def salvar_login_config(body: dict, rh=Depends(get_usuario_rh_atual)):
     empresa_id = rh.get("empresa_id")
     if not empresa_id:
         ids = _empresa_ids(rh)
@@ -1292,7 +1305,7 @@ async def salvar_login_config(body: dict, rh=Depends(get_usuario_rh_atual)):
 # ── Ajuste manual do banco de horas ──────────────────────────────────────────
 
 @router.get("/colaboradores/{colab_id}/ajuste-banco")
-async def listar_ajustes_banco(colab_id: str, rh=Depends(get_usuario_rh_atual)):
+def listar_ajustes_banco(colab_id: str, rh=Depends(get_usuario_rh_atual)):
     res = (
         sb.table("ajustes_banco_horas")
         .select("*")
@@ -1304,7 +1317,7 @@ async def listar_ajustes_banco(colab_id: str, rh=Depends(get_usuario_rh_atual)):
 
 
 @router.post("/colaboradores/{colab_id}/ajuste-banco")
-async def criar_ajuste_banco(colab_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
+def criar_ajuste_banco(colab_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
     colab = sb.table("colaboradores").select("banco_horas_bloqueado").eq("id", colab_id).limit(1).execute()
     if colab.data and colab.data[0].get("banco_horas_bloqueado"):
         raise HTTPException(403, "Banco de horas bloqueado para este colaborador.")
@@ -1330,7 +1343,7 @@ async def criar_ajuste_banco(colab_id: str, body: dict, rh=Depends(get_usuario_r
 
 
 @router.delete("/ajuste-banco/{ajuste_id}")
-async def excluir_ajuste_banco(ajuste_id: str, rh=Depends(get_usuario_rh_atual)):
+def excluir_ajuste_banco(ajuste_id: str, rh=Depends(get_usuario_rh_atual)):
     ajuste = sb.table("ajustes_banco_horas").select("colaborador_id").eq("id", ajuste_id).limit(1).execute()
     if ajuste.data:
         colab = sb.table("colaboradores").select("banco_horas_bloqueado").eq("id", ajuste.data[0]["colaborador_id"]).limit(1).execute()
@@ -1351,7 +1364,7 @@ def _colab_da_empresa(colab_id: str, rh: dict) -> dict:
 
 
 @router.get("/colaboradores/{colab_id}/liberacoes-hora-extra")
-async def listar_liberacoes_hora_extra(colab_id: str, rh=Depends(get_usuario_rh_atual)):
+def listar_liberacoes_hora_extra(colab_id: str, rh=Depends(get_usuario_rh_atual)):
     _colab_da_empresa(colab_id, rh)
     res = (
         sb.table("liberacoes_hora_extra")
@@ -1364,7 +1377,7 @@ async def listar_liberacoes_hora_extra(colab_id: str, rh=Depends(get_usuario_rh_
 
 
 @router.post("/colaboradores/{colab_id}/liberacoes-hora-extra")
-async def criar_liberacao_hora_extra(colab_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
+def criar_liberacao_hora_extra(colab_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
     colab = _colab_da_empresa(colab_id, rh)
     data_liberada = str(body.get("data_liberada") or "").strip()
     try:
@@ -1390,7 +1403,7 @@ async def criar_liberacao_hora_extra(colab_id: str, body: dict, rh=Depends(get_u
 
 
 @router.delete("/colaboradores/{colab_id}/liberacoes-hora-extra/{liberacao_id}")
-async def excluir_liberacao_hora_extra(colab_id: str, liberacao_id: str, rh=Depends(get_usuario_rh_atual)):
+def excluir_liberacao_hora_extra(colab_id: str, liberacao_id: str, rh=Depends(get_usuario_rh_atual)):
     _colab_da_empresa(colab_id, rh)
     sb.table("liberacoes_hora_extra").delete().eq("id", liberacao_id).eq("colaborador_id", colab_id).execute()
     return {"ok": True}
@@ -1399,7 +1412,7 @@ async def excluir_liberacao_hora_extra(colab_id: str, liberacao_id: str, rh=Depe
 # ── Backfill banco de horas ───────────────────────────────────────────────────
 
 @router.post("/banco-horas/backfill")
-async def backfill_banco_horas(rh=Depends(get_usuario_rh_atual)):
+def backfill_banco_horas(rh=Depends(get_usuario_rh_atual)):
     """
     Processa todos os registros históricos de entrada/saída e cria os ajustes
     automáticos de banco de horas que ainda não existem.
@@ -1607,7 +1620,7 @@ async def backfill_banco_horas(rh=Depends(get_usuario_rh_atual)):
 # ── Dispositivos de ponto fixo ────────────────────────────────────────────────
 
 @router.get("/dispositivos")
-async def listar_dispositivos(rh=Depends(get_usuario_rh_atual)):
+def listar_dispositivos(rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     res = (
         sb.table("dispositivos_ponto")
@@ -1621,7 +1634,7 @@ async def listar_dispositivos(rh=Depends(get_usuario_rh_atual)):
 
 
 @router.post("/dispositivos")
-async def criar_dispositivo(body: dict, rh=Depends(get_usuario_rh_atual)):
+def criar_dispositivo(body: dict, rh=Depends(get_usuario_rh_atual)):
     import random, string
     empresa_id = rh.get("empresa_id")
     if not empresa_id:
@@ -1649,7 +1662,7 @@ async def criar_dispositivo(body: dict, rh=Depends(get_usuario_rh_atual)):
 
 
 @router.delete("/dispositivos/{disp_id}")
-async def excluir_dispositivo(disp_id: str, rh=Depends(get_usuario_rh_atual)):
+def excluir_dispositivo(disp_id: str, rh=Depends(get_usuario_rh_atual)):
     sb.table("dispositivos_ponto").update({"ativo": False}).eq("id", disp_id).execute()
     return {"ok": True}
 
@@ -1663,7 +1676,7 @@ APK_PATH = os.environ.get("KIOSK_APK_PATH", "/app/downloads/caju-kiosk.apk")
 
 
 @router.get("/kiosk-apk/info")
-async def kiosk_apk_info(rh=Depends(get_usuario_rh_atual)):
+def kiosk_apk_info(rh=Depends(get_usuario_rh_atual)):
     """Retorna metadados do APK disponível para download."""
     if not os.path.exists(APK_PATH):
         return {"disponivel": False}
@@ -1676,7 +1689,7 @@ async def kiosk_apk_info(rh=Depends(get_usuario_rh_atual)):
 
 
 @router.get("/kiosk-apk/download")
-async def download_kiosk_apk(rh=Depends(get_usuario_rh_atual)):
+def download_kiosk_apk(rh=Depends(get_usuario_rh_atual)):
     """Serve o APK do kiosk compactado em zip."""
     if not os.path.exists(APK_PATH):
         raise HTTPException(404, "APK não disponível. Faça upload de uma versão primeiro.")
@@ -1744,7 +1757,7 @@ async def criar_atestado(
 
 
 @router.get("/atestados")
-async def listar_atestados(
+def listar_atestados(
     colaborador_id: Optional[str] = None,
     mes: Optional[str] = None,
     rh=Depends(get_usuario_rh_atual),
@@ -1767,7 +1780,7 @@ async def listar_atestados(
 
 
 @router.delete("/atestados/{atestado_id}")
-async def excluir_atestado(atestado_id: str, rh=Depends(get_usuario_rh_atual)):
+def excluir_atestado(atestado_id: str, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     # Busca arquivo_url antes de deletar o registro
     res = sb.table("atestados").select("arquivo_url").eq("id", atestado_id).in_("empresa_id", ids).limit(1).execute()
@@ -1782,7 +1795,7 @@ async def excluir_atestado(atestado_id: str, rh=Depends(get_usuario_rh_atual)):
 
 
 @router.get("/atestados/{atestado_id}/arquivo")
-async def url_arquivo_atestado(atestado_id: str, rh=Depends(get_usuario_rh_atual)):
+def url_arquivo_atestado(atestado_id: str, rh=Depends(get_usuario_rh_atual)):
     ids = _empresa_ids(rh)
     res = sb.table("atestados").select("arquivo_url").eq("id", atestado_id).in_("empresa_id", ids).single().execute()
     if not res.data or not res.data.get("arquivo_url"):
