@@ -115,6 +115,45 @@ body { margin: 0; font-family: system-ui, sans-serif; }
   color: #18181b;
 }
 
+/* ── Diálogo de confirmação (components/ConfirmDialog.jsx) ── */
+@keyframes dlg-fade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes dlg-pop {
+  0%   { opacity: 0; transform: translateY(14px) scale(0.94) }
+  70%  { transform: translateY(-2px) scale(1.01) }
+  100% { opacity: 1; transform: none }
+}
+@keyframes dlg-anel {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--dlg-cor) 45%, transparent) }
+  100% { box-shadow: 0 0 0 16px transparent }
+}
+.dlg-backdrop {
+  position: fixed; inset: 0; z-index: 10000; padding: 16px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(15, 23, 42, 0.55); backdrop-filter: blur(4px);
+  animation: dlg-fade 0.18s ease-out;
+}
+.dlg-card {
+  width: 100%; max-width: 420px; background: #fff; border-radius: 22px; overflow: hidden;
+  box-shadow: 0 24px 60px -12px rgba(0, 0, 0, 0.45);
+  animation: dlg-pop 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+.dlg-icone {
+  width: 68px; height: 68px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: 4px solid #fff; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  animation: dlg-anel 1.8s ease-out 0.3s infinite;
+}
+.dlg-btn {
+  flex: 1; padding: 12px 14px; border: 0; border-radius: 12px; cursor: pointer;
+  font-size: 14px; font-weight: 600; transition: transform 0.12s, filter 0.12s;
+}
+.dlg-btn:hover { filter: brightness(0.96); }
+.dlg-btn-ok:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.dlg-btn:active { transform: scale(0.97); }
+.dlg-btn:focus-visible { outline: 3px solid rgba(5, 150, 105, 0.35); outline-offset: 2px; }
+.dlg-saindo { animation: dlg-fade 0.16s ease-in reverse forwards; }
+.dlg-saindo .dlg-card { transform: scale(0.96); opacity: 0; transition: all 0.16s ease-in; }
+
 /* ── Scrollbar minimalista nos modais ── */
 .overflow-y-auto::-webkit-scrollbar {
   width: 4px;

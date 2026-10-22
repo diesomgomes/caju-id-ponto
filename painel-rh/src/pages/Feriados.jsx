@@ -4,9 +4,9 @@ import { IconExcluir } from '../components/IconBtn'
 
 const TIPO_LABEL = { nacional: 'Nacional', municipal: 'Municipal', empresa: 'Empresa' }
 const TIPO_COR   = {
-  nacional:  'text-blue-400 bg-blue-900/30 border-blue-800/50',
-  municipal: 'text-yellow-400 bg-yellow-900/30 border-yellow-800/50',
-  empresa:   'text-emerald-400 bg-emerald-900/30 border-emerald-800/50',
+  nacional:  'text-blue-950 bg-blue-100 border-blue-300',
+  municipal: 'text-amber-950 bg-amber-100 border-amber-300',
+  empresa:   'text-emerald-950 bg-emerald-100 border-emerald-300',
 }
 
 export default function Feriados() {

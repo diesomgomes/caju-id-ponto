@@ -4,6 +4,7 @@ import L from 'leaflet'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { confirmar } from '../components/ConfirmDialog'
 import {
   getJornadas, getRegistros, getColaboradores, exportarJornadas,
   excluirJornada, excluirRegistro, getFotoUrl, ajustarRegistro, getMe,
@@ -1162,7 +1163,20 @@ function AbaBancoHoras({ colaboradores, me }) {
   const bloqueado = !!colaborador?.banco_horas_bloqueado
 
   async function executarBackfill() {
-    if (!confirm('Isso vai processar todos os registros históricos e criar os lançamentos automáticos de banco de horas. Continuar?')) return
+    const ok = await confirmar({
+      titulo: 'Recalcular banco de horas?',
+      mensagem: 'Os lançamentos automáticos serão gerados a partir de todo o histórico de registros.',
+      itens: [
+        'Processa todos os registros históricos',
+        'Cria os lançamentos automáticos de banco de horas',
+        'Pode levar alguns segundos para concluir',
+      ],
+      tipo: 'info',
+      icone: 'relogio',
+      confirmarLabel: 'Processar agora',
+      cancelarLabel: 'Cancelar',
+    })
+    if (!ok) return
     setBackfilling(true)
     setBackfillResult(null)
     try {
@@ -1251,7 +1265,7 @@ function AbaBancoHoras({ colaboradores, me }) {
               ) : '⚡ Importar histórico de banco de horas'}
             </button>
             {backfillResult && (
-              <div className={`text-xs rounded-lg px-3 py-2 ${backfillResult.ok ? 'bg-emerald-900/30 border border-emerald-700/40 text-emerald-300' : 'bg-red-900/30 border border-red-700/40 text-red-300'}`}>
+              <div className={`text-sm font-medium rounded-lg px-3 py-2 border ${backfillResult.ok ? 'bg-emerald-50 border-emerald-300 text-emerald-950' : 'bg-red-50 border-red-300 text-red-950'}`}>
                 {backfillResult.ok
                   ? `✓ ${backfillResult.criados} lançamentos criados de ${backfillResult.processados} batidas analisadas.`
                   : `Erro: ${backfillResult.erro}`}
