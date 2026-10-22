@@ -224,5 +224,6 @@ export const getLoginConfig = () => fetch(`${window.__API_URL__ || 'https://caju
 
 export const getDispositivos = () => api('/rh/dispositivos')
 export const criarDispositivo = (body) => api('/rh/dispositivos', { method: 'POST', body: JSON.stringify(body) })
-export const excluirDispositivo = (id) => api(`/rh/dispositivos/${id}`, { method: 'DELETE' })
+export const atualizarDispositivo = (id, body) => api(`/rh/dispositivos/${id}`, { method: 'PUT', body: JSON.stringify(body) })
+export const excluirDispositivo =(id) => api(`/rh/dispositivos/${id}`, { method: 'DELETE' })
 export const salvarLoginConfig = (body) => api('/rh/login-config', { method: 'PATCH', body: JSON.stringify(body) })

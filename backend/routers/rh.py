@@ -1661,6 +1661,58 @@ def criar_dispositivo(body: dict, rh=Depends(get_usuario_rh_atual)):
     return res.data[0]
 
 
+@router.put("/dispositivos/{disp_id}")
+def atualizar_dispositivo(disp_id: str, body: dict, rh=Depends(get_usuario_rh_atual)):
+    atual = (
+        sb.table("dispositivos_ponto")
+        .select("id, empresa_id")
+        .eq("id", disp_id)
+        .eq("ativo", True)
+        .limit(1)
+        .execute()
+    ).data
+    if not atual:
+        raise HTTPException(404, "Dispositivo não encontrado.")
+    if atual[0]["empresa_id"] not in _empresa_ids(rh):
+        raise HTTPException(403, "Sem acesso a este dispositivo.")
+
+    payload: dict = {}
+    try:
+        if "nome" in body:
+            nome = str(body["nome"] or "").strip()
+            if not nome:
+                raise HTTPException(400, "Nome obrigatório.")
+            payload["nome"] = nome
+        if "endereco" in body:
+            payload["endereco"] = str(body["endereco"] or "").strip() or None
+        for campo, limite in (("lat", 90), ("lng", 180)):
+            if campo in body:
+                v = body[campo]
+                if v in (None, ""):
+                    payload[campo] = None
+                else:
+                    v = float(v)
+                    if abs(v) > limite:
+                        raise HTTPException(400, f"{'Latitude' if campo == 'lat' else 'Longitude'} inválida.")
+                    payload[campo] = v
+        if "intervalo_refresh" in body:
+            v = body["intervalo_refresh"]
+            mins = int(v) if v not in (None, "") else 0
+            payload["intervalo_refresh"] = mins if mins > 0 else None
+        if "senha" in body:
+            senha = str(body["senha"] or "").strip()
+            if not (senha.isdigit() and 4 <= len(senha) <= 6):
+                raise HTTPException(400, "O PIN deve ter de 4 a 6 dígitos.")
+            payload["senha"] = senha
+    except (TypeError, ValueError):
+        raise HTTPException(400, "Valor inválido nos dados informados.")
+
+    if not payload:
+        raise HTTPException(400, "Nada para atualizar.")
+    res = sb.table("dispositivos_ponto").update(payload).eq("id", disp_id).execute()
+    return res.data[0] if res.data else {"ok": True}
+
+
 @router.delete("/dispositivos/{disp_id}")
 def excluir_dispositivo(disp_id: str, rh=Depends(get_usuario_rh_atual)):
     sb.table("dispositivos_ponto").update({"ativo": False}).eq("id", disp_id).execute()

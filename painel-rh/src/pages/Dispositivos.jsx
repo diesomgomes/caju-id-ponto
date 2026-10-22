@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { getDispositivos, criarDispositivo, excluirDispositivo, getColaboradores, getKioskApkInfo, downloadKioskApk, uploadKioskApk } from '../api'
-import { IconExcluir } from '../components/IconBtn'
+import { getDispositivos, criarDispositivo, atualizarDispositivo, excluirDispositivo, getColaboradores, getKioskApkInfo, downloadKioskApk, uploadKioskApk } from '../api'
+import { IconEditar, IconExcluir } from '../components/IconBtn'
 import Portal from '../components/Portal'
 
 const BASE_URL = window.location.origin
@@ -52,8 +52,140 @@ function ModalQRColabs({ dispositivo, colaboradores, onFechar }) {
   )
 }
 
+const INTERVALOS_REFRESH = [
+  ['', 'Sem refresh automático'], ['2', 'A cada 2 minutos'], ['5', 'A cada 5 minutos'],
+  ['10', 'A cada 10 minutos'], ['15', 'A cada 15 minutos'], ['30', 'A cada 30 minutos'], ['60', 'A cada 1 hora'],
+]
+
+function ModalEditarDispositivo({ dispositivo, onSalvo, onFechar }) {
+  const [nome, setNome] = useState(dispositivo.nome || '')
+  const [endereco, setEndereco] = useState(dispositivo.endereco || '')
+  const [lat, setLat] = useState(dispositivo.lat != null ? String(dispositivo.lat) : '')
+  const [lng, setLng] = useState(dispositivo.lng != null ? String(dispositivo.lng) : '')
+  const [refresh, setRefresh] = useState(dispositivo.intervalo_refresh ? String(dispositivo.intervalo_refresh) : '')
+  const [senha, setSenha] = useState(dispositivo.senha || '')
+  const [buscandoGps, setBuscandoGps] = useState(false)
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
+
+  const campo = 'w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-gray-900 text-sm focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20'
+  const rotulo = 'text-xs font-semibold text-gray-600 block mb-1'
+  const senhaMudou = senha !== (dispositivo.senha || '')
+
+  function capturarGps() {
+    if (!navigator.geolocation) return setErro('Geolocalização não disponível neste browser.')
+    setBuscandoGps(true)
+    navigator.geolocation.getCurrentPosition(
+      pos => { setLat(pos.coords.latitude.toFixed(6)); setLng(pos.coords.longitude.toFixed(6)); setBuscandoGps(false) },
+      () => { setErro('Não foi possível obter a localização.'); setBuscandoGps(false) }
+    )
+  }
+
+  function gerarPin() {
+    setSenha(String(Math.floor(Math.random() * 1000000)).padStart(6, '0'))
+  }
+
+  async function salvar() {
+    if (!nome.trim()) return setErro('Informe um nome para o dispositivo.')
+    if (senha && !/^\d{4,6}$/.test(senha)) return setErro('O PIN deve ter de 4 a 6 dígitos.')
+    if ((lat && !lng) || (!lat && lng)) return setErro('Informe latitude e longitude juntas (ou deixe as duas vazias).')
+    setErro(''); setSalvando(true)
+    try {
+      const payload = {
+        nome: nome.trim(),
+        endereco: endereco.trim(),
+        lat: lat ? parseFloat(lat) : null,
+        lng: lng ? parseFloat(lng) : null,
+        intervalo_refresh: refresh ? parseInt(refresh) : null,
+      }
+      if (senha && senhaMudou) payload.senha = senha
+      await atualizarDispositivo(dispositivo.id, payload)
+      onSalvo()
+    } catch (e) { setErro(e.message); setSalvando(false) }
+  }
+
+  return (
+    <Portal><div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4" onClick={onFechar}>
+      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-start px-6 py-4 border-b border-gray-200">
+          <div>
+            <h3 className="font-bold text-gray-900 text-lg">Editar dispositivo</h3>
+            <p className="text-sm text-gray-500 mt-0.5">O link e o QR Code do dispositivo continuam os mesmos.</p>
+          </div>
+          <button onClick={onFechar} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div>
+            <label className={rotulo}>Nome</label>
+            <input type="text" value={nome} onChange={e => setNome(e.target.value)} className={campo} autoFocus />
+          </div>
+
+          <div>
+            <label className={rotulo}>Endereço / Local</label>
+            <input type="text" value={endereco} onChange={e => setEndereco(e.target.value)}
+              placeholder="Ex: Rua das Flores, 100 — Portaria Principal" className={campo} />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-semibold text-gray-600">Coordenadas GPS</label>
+              <button type="button" onClick={capturarGps} disabled={buscandoGps}
+                className="text-xs text-emerald-700 hover:text-emerald-600 font-semibold disabled:opacity-50">
+                {buscandoGps ? 'Buscando…' : '📍 Capturar localização atual'}
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <input type="text" value={lat} onChange={e => setLat(e.target.value)} placeholder="Latitude" className={`${campo} font-mono`} />
+              <input type="text" value={lng} onChange={e => setLng(e.target.value)} placeholder="Longitude" className={`${campo} font-mono`} />
+            </div>
+          </div>
+
+          <div>
+            <label className={rotulo}>Recarregar tela automaticamente</label>
+            <select value={refresh} onChange={e => setRefresh(e.target.value)} className={campo}>
+              {INTERVALOS_REFRESH.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className={rotulo}>PIN de acesso (4 a 6 dígitos)</label>
+            <div className="flex gap-2">
+              <input type="text" inputMode="numeric" maxLength={6} value={senha}
+                onChange={e => setSenha(e.target.value.replace(/\D/g, ''))}
+                className={`${campo} font-mono tracking-widest font-bold`} />
+              <button type="button" onClick={gerarPin}
+                className="px-3 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 whitespace-nowrap">
+                Gerar novo
+              </button>
+            </div>
+            {senhaMudou && (
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
+                Ao trocar o PIN, o tablet precisa ser reaberto e o novo PIN digitado.
+              </p>
+            )}
+          </div>
+
+          {erro && <p className="text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{erro}</p>}
+        </div>
+
+        <div className="flex gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+          <button onClick={onFechar} className="flex-1 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-100">
+            Cancelar
+          </button>
+          <button onClick={salvar} disabled={salvando}
+            className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-semibold">
+            {salvando ? 'Salvando…' : 'Salvar alterações'}
+          </button>
+        </div>
+      </div>
+    </div></Portal>
+  )
+}
+
 export default function Dispositivos() {
   const [lista, setLista] = useState([])
+  const [editando, setEditando] = useState(null)
   const [colaboradores, setColaboradores] = useState([])
   const [loading, setLoading] = useState(false)
   const [nome, setNome] = useState('')
@@ -359,6 +491,7 @@ export default function Dispositivos() {
                     className="text-xs px-3 py-1.5 rounded-lg border border-blue-800 text-blue-400 hover:border-blue-600 bg-blue-900/10 transition-colors">
                     QR Codes
                   </button>
+                  <IconEditar title="Editar dispositivo" onClick={() => setEditando(d)} />
                   <IconExcluir onClick={() => excluir(d.id)} />
                 </div>
               </div>
@@ -396,6 +529,14 @@ export default function Dispositivos() {
           dispositivo={modalQR}
           colaboradores={colaboradores}
           onFechar={() => setModalQR(null)}
+        />
+      )}
+
+      {editando && (
+        <ModalEditarDispositivo
+          dispositivo={editando}
+          onSalvo={() => { setEditando(null); carregar() }}
+          onFechar={() => setEditando(null)}
         />
       )}
 
