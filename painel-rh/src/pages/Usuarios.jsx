@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { confirmarExclusao, avisar } from '../components/ConfirmDialog'
 import { getUsuarios, criarUsuario, atualizarUsuario, excluirUsuario, getEmpresas, getMe } from '../api'
 import Portal from '../components/Portal'
 import { IconEditar, IconExcluir } from '../components/IconBtn'
@@ -162,8 +163,8 @@ export default function Usuarios() {
   }
 
   async function excluir(u) {
-    if (!confirm(`Excluir o usuário "${u.nome}"? Esta ação não pode ser desfeita.`)) return
-    try { await excluirUsuario(u.id); carregar() } catch (e) { alert(e.message) }
+    if (!(await confirmarExclusao({ titulo: 'Excluir usuário?', mensagem: `${u.nome} será removido. Esta ação não pode ser desfeita.` }))) return
+    try { await excluirUsuario(u.id); carregar() } catch (e) { avisar(e.message) }
   }
 
   const nomeEmpresa = id => empresas.find(e => e.id === id)?.nome || '—'

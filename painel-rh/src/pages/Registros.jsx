@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import { confirmarExclusao, avisar } from '../components/ConfirmDialog'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import L from 'leaflet'
 import { getRegistros, getColaboradores, getFotoUrl, ajustarRegistro, excluirRegistro, getMe, criarRegistroManual, criarAtestado, getAtestados, getArquivoAtestado, excluirAtestado } from '../api'
@@ -534,8 +535,8 @@ export default function Registros() {
                       <td className="px-4 py-3">
                         {me?.papel === 'admin' && (
                           <IconExcluir onClick={async () => {
-                            if (!confirm(`Remover atestado de ${nomeColab}?`)) return
-                            try { await excluirAtestado(a.id); buscar() } catch (e) { alert(e.message) }
+                            if (!(await confirmarExclusao({ titulo: 'Remover atestado?', mensagem: `Atestado de ${nomeColab}.`, confirmarLabel: 'Remover' }))) return
+                            try { await excluirAtestado(a.id); buscar() } catch (e) { avisar(e.message) }
                           }} />
                         )}
                       </td>
@@ -567,8 +568,8 @@ export default function Registros() {
                       <IconAjustar onClick={() => setAjusteReg(r)} />
                       {me?.papel === 'admin' && (
                         <IconExcluir onClick={async () => {
-                          if (!confirm(`Excluir este registro de ${r.colaborador_nome}? Esta ação não pode ser desfeita.`)) return
-                          try { await excluirRegistro(r.id); buscar() } catch (e) { alert(e.message) }
+                          if (!(await confirmarExclusao({ titulo: 'Excluir registro?', mensagem: `Registro de ${r.colaborador_nome}. Esta ação não pode ser desfeita.` }))) return
+                          try { await excluirRegistro(r.id); buscar() } catch (e) { avisar(e.message) }
                         }} />
                       )}
                     </td>
@@ -589,9 +590,9 @@ export default function Registros() {
           nomeColab={atestadoVer.nomeColab}
           onClose={() => setAtestadoVer(null)}
           onExcluir={async () => {
-            if (!confirm(`Remover atestado de ${atestadoVer.nomeColab}?`)) return
+            if (!(await confirmarExclusao({ titulo: 'Remover atestado?', mensagem: `Atestado de ${atestadoVer.nomeColab}.`, confirmarLabel: 'Remover' }))) return
             try { await excluirAtestado(atestadoVer.atestado.id); setAtestadoVer(null); buscar() }
-            catch (e) { alert(e.message) }
+            catch (e) { avisar(e.message) }
           }}
         />
       )}

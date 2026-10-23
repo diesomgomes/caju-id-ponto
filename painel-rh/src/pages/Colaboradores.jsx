@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { confirmar, confirmarExclusao, avisar } from '../components/ConfirmDialog'
 import {
   getColaboradores, criarColaborador, atualizarColaborador, excluirColaborador,
   getEmpresas, getModelosJornada, getLocais, getLocaisColaborador, setLocaisColaborador,
@@ -47,8 +48,8 @@ function ModalLiberarData({ colaborador, onFechar, onAlterado }) {
   }
 
   async function remover(id) {
-    if (!confirm('Remover esta liberação?')) return
-    try { await excluirLiberacaoHoraExtra(colaborador.id, id); await carregar() } catch (e) { alert(e.message) }
+    if (!(await confirmarExclusao({ titulo: 'Remover liberação?', mensagem: 'A liberação de hora extra será removida.', confirmarLabel: 'Remover' }))) return
+    try { await excluirLiberacaoHoraExtra(colaborador.id, id); await carregar() } catch (e) { avisar(e.message) }
   }
 
   return (
@@ -282,7 +283,7 @@ function ModalLocais({ colaborador, todosLocais, onFechar, onSalvo }) {
       await setLocaisColaborador(colaborador.id, selecionados)
       onSalvo()
       onFechar()
-    } catch (e) { alert(e.message) } finally { setSaving(false) }
+    } catch (e) { avisar(e.message) } finally { setSaving(false) }
   }
 
   return (
@@ -426,7 +427,7 @@ function ModalQRColaborador({ colaborador, onFechar }) {
       navigator.share({ title: colaborador.nome, url })
     } else {
       navigator.clipboard.writeText(url)
-      alert('URL do QR Code copiada!')
+      avisar({ tipo: 'sucesso', titulo: 'Link copiado!', mensagem: 'A URL do QR Code foi copiada para a área de transferência.' })
     }
   }
 
@@ -512,8 +513,8 @@ export default function Colaboradores() {
   }
 
   async function excluir(id) {
-    if (!confirm('Confirma exclusão do colaborador?')) return
-    try { await excluirColaborador(id); carregar() } catch (e) { alert(e.message) }
+    if (!(await confirmarExclusao({ titulo: 'Excluir colaborador?', mensagem: 'Confirma a exclusão deste colaborador?' }))) return
+    try { await excluirColaborador(id); carregar() } catch (e) { avisar(e.message) }
   }
 
   async function toggleHoraExtra(c) {
@@ -521,8 +522,8 @@ export default function Colaboradores() {
     const msg = novo
       ? `Liberar horas extras de ${c.nome} em todos os dias?`
       : `Voltar a bloquear horas extras de ${c.nome}?`
-    if (!confirm(msg)) return
-    try { await atualizarColaborador(c.id, { hora_extra_liberada: novo }); carregar() } catch (e) { alert(e.message) }
+    if (!(await confirmar({ titulo: novo ? 'Liberar horas extras?' : 'Bloquear horas extras?', mensagem: msg, tipo: 'aviso', icone: 'relogio', confirmarLabel: novo ? 'Liberar' : 'Bloquear' }))) return
+    try { await atualizarColaborador(c.id, { hora_extra_liberada: novo }); carregar() } catch (e) { avisar(e.message) }
   }
 
   function fmtJornada(c) {

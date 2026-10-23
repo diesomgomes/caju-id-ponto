@@ -4,7 +4,7 @@ import L from 'leaflet'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { confirmar } from '../components/ConfirmDialog'
+import { confirmar, confirmarExclusao, avisar } from '../components/ConfirmDialog'
 import {
   getJornadas, getRegistros, getColaboradores, exportarJornadas,
   excluirJornada, excluirRegistro, getFotoUrl, ajustarRegistro, getMe,
@@ -166,7 +166,7 @@ function AbaJornada({ colaboradores, me }) {
       const a = document.createElement('a'); a.href = url
       a.download = `jornada_${filtros.mes}.${ext}`; a.click()
       URL.revokeObjectURL(url)
-    } catch (e) { alert(e.message) } finally { setExporting(false) }
+    } catch (e) { avisar(e.message) } finally { setExporting(false) }
   }
 
   const totalHoras = jornadas.reduce((acc, j) => {
@@ -255,8 +255,8 @@ function AbaJornada({ colaboradores, me }) {
                   {me?.papel === 'admin' && (
                     <td className="px-4 py-3">
                       <IconExcluir onClick={async () => {
-                        if (!confirm(`Excluir jornada de ${j.colaborador_nome} em ${new Date(j.data + 'T12:00:00').toLocaleDateString('pt-BR')}? Esta ação não pode ser desfeita.`)) return
-                        try { await excluirJornada(j.id); buscar() } catch (e) { alert(e.message) }
+                        if (!(await confirmarExclusao({ titulo: 'Excluir jornada?', mensagem: `Jornada de ${j.colaborador_nome} em ${new Date(j.data + 'T12:00:00').toLocaleDateString('pt-BR')}. Esta ação não pode ser desfeita.` }))) return
+                        try { await excluirJornada(j.id); buscar() } catch (e) { avisar(e.message) }
                       }} />
                     </td>
                   )}
@@ -632,8 +632,8 @@ function AbaRegistros({ colaboradores, me }) {
                       <td className="px-4 py-3">
                         {me?.papel === 'admin' && (
                           <IconExcluir onClick={async () => {
-                            if (!confirm(`Remover atestado de ${nomeColab}?`)) return
-                            try { await excluirAtestado(a.id); buscar() } catch (e) { alert(e.message) }
+                            if (!(await confirmarExclusao({ titulo: 'Remover atestado?', mensagem: `Atestado de ${nomeColab}.`, confirmarLabel: 'Remover' }))) return
+                            try { await excluirAtestado(a.id); buscar() } catch (e) { avisar(e.message) }
                           }} />
                         )}
                       </td>
@@ -661,8 +661,8 @@ function AbaRegistros({ colaboradores, me }) {
                       <IconAjustar onClick={() => setAjusteReg(r)} />
                       {me?.papel === 'admin' && (
                         <IconExcluir onClick={async () => {
-                          if (!confirm(`Excluir este registro de ${r.colaborador_nome}? Esta ação não pode ser desfeita.`)) return
-                          try { await excluirRegistro(r.id); buscar() } catch (e) { alert(e.message) }
+                          if (!(await confirmarExclusao({ titulo: 'Excluir registro?', mensagem: `Registro de ${r.colaborador_nome}. Esta ação não pode ser desfeita.` }))) return
+                          try { await excluirRegistro(r.id); buscar() } catch (e) { avisar(e.message) }
                         }} />
                       )}
                     </td>
@@ -683,9 +683,9 @@ function AbaRegistros({ colaboradores, me }) {
           nomeColab={atestadoVer.nomeColab}
           onClose={() => setAtestadoVer(null)}
           onExcluir={async () => {
-            if (!confirm(`Remover atestado de ${atestadoVer.nomeColab}?`)) return
+            if (!(await confirmarExclusao({ titulo: 'Remover atestado?', mensagem: `Atestado de ${atestadoVer.nomeColab}.`, confirmarLabel: 'Remover' }))) return
             try { await excluirAtestado(atestadoVer.atestado.id); setAtestadoVer(null); buscar() }
-            catch (e) { alert(e.message) }
+            catch (e) { avisar(e.message) }
           }}
         />
       )}
@@ -703,7 +703,7 @@ function PainelAtestado({ atestado, onExcluir }) {
     try {
       const d = await getArquivoAtestado(atestado.id)
       window.open(d.url, '_blank')
-    } catch (e) { alert('Erro ao abrir arquivo.') }
+    } catch (e) { avisar('Não foi possível abrir o arquivo.') }
     finally { setLoadingUrl(false) }
   }
 
@@ -828,7 +828,7 @@ function CardRegistro({ registro, onClick }) {
 
 async function exportarRelatorio(mes, colaboradorId, colaboradores, formato) {
   const rows = await getRelatorio(mes, colaboradorId || null)
-  if (!rows?.length) { alert('Nenhum dado para exportar.'); return }
+  if (!rows?.length) { avisar({ tipo: 'aviso', titulo: 'Nada para exportar', mensagem: 'Não há dados para o período selecionado.' }); return }
 
   const [ano, m] = mes.split('-')
   const nomeMes = new Date(Number(ano), Number(m) - 1, 1).toLocaleString('pt-BR', { month: 'long' })
@@ -925,7 +925,7 @@ function AbaCalendario({ colaboradores }) {
   async function handleExportar(fmt) {
     setExportando(true)
     try { await exportarRelatorio(mes, colaboradorId, colaboradores, fmt) }
-    catch (e) { console.error(e); alert('Erro ao gerar relatório.') }
+    catch (e) { console.error(e); avisar('Não foi possível gerar o relatório.') }
     finally { setExportando(false) }
   }
 
@@ -1101,9 +1101,9 @@ function AbaCalendario({ colaboradores }) {
                   {/* Painel de atestado */}
                   {diaSelecionado.status === 'atestado' && diaSelecionado.atestado && (
                     <PainelAtestado atestado={diaSelecionado.atestado} onExcluir={async () => {
-                      if (!confirm('Remover este atestado?')) return
+                      if (!(await confirmarExclusao({ titulo: 'Remover atestado?', mensagem: 'O atestado será removido deste dia.', confirmarLabel: 'Remover' }))) return
                       try { await excluirAtestado(diaSelecionado.atestado.id); buscar() }
-                      catch (e) { alert(e.message) }
+                      catch (e) { avisar(e.message) }
                     }} />
                   )}
 
@@ -1222,11 +1222,11 @@ function AbaBancoHoras({ colaboradores, me }) {
 
   async function remover(id) {
     if (bloqueado) return
-    if (!confirm('Remover este ajuste?')) return
+    if (!(await confirmarExclusao({ titulo: 'Remover ajuste?', mensagem: 'O ajuste será removido do banco de horas.', confirmarLabel: 'Remover' }))) return
     try {
       await excluirAjusteBanco(id)
       setAjustes(a => a.filter(x => x.id !== id))
-    } catch (e) { alert(e.message) }
+    } catch (e) { avisar(e.message) }
   }
 
   const totalGeral = ajustes.reduce((s, a) => s + a.minutos, 0)

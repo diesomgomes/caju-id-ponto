@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { confirmarExclusao, avisar } from '../components/ConfirmDialog'
 import { MapContainer, TileLayer, Marker, Circle, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import { getLocais, criarLocal, atualizarLocal, excluirLocal } from '../api'
@@ -110,8 +111,8 @@ export default function Locais() {
   }
 
   async function excluir(id) {
-    if (!confirm('Confirma exclusão do local?')) return
-    try { await excluirLocal(id); carregar() } catch (e) { alert(e.message) }
+    if (!(await confirmarExclusao({ titulo: 'Excluir local?', mensagem: 'Os colaboradores deixarão de poder registrar ponto neste local.' }))) return
+    try { await excluirLocal(id); carregar() } catch (e) { avisar(e.message) }
   }
 
   return (

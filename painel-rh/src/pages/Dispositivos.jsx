@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { confirmarExclusao, avisar } from '../components/ConfirmDialog'
 import { getDispositivos, criarDispositivo, atualizarDispositivo, excluirDispositivo, getColaboradores, getKioskApkInfo, downloadKioskApk, uploadKioskApk } from '../api'
 import { IconEditar, IconExcluir } from '../components/IconBtn'
 import Portal from '../components/Portal'
@@ -252,8 +253,8 @@ export default function Dispositivos() {
   }
 
   async function excluir(id) {
-    if (!confirm('Remover este dispositivo? Os registros feitos por ele não serão apagados.')) return
-    try { await excluirDispositivo(id); carregar() } catch (e) { alert(e.message) }
+    if (!(await confirmarExclusao({ titulo: 'Remover dispositivo?', mensagem: 'Os registros feitos por ele não serão apagados.', confirmarLabel: 'Remover' }))) return
+    try { await excluirDispositivo(id); carregar() } catch (e) { avisar(e.message) }
   }
 
   function copiarUrlApp() {

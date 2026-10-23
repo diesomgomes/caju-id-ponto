@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { confirmarExclusao, avisar } from '../components/ConfirmDialog'
 import { getEmpresas, criarEmpresa, atualizarEmpresa, excluirEmpresa } from '../api'
 import Portal from '../components/Portal'
 import { IconEditar, IconExcluir } from '../components/IconBtn'
@@ -119,8 +120,8 @@ export default function Empresas() {
   }
 
   async function excluir(id) {
-    if (!confirm('Confirma desativação da empresa? Colaboradores vinculados não serão afetados.')) return
-    try { await excluirEmpresa(id); carregar() } catch (e) { alert(e.message) }
+    if (!(await confirmarExclusao({ titulo: 'Desativar empresa?', mensagem: 'Colaboradores vinculados não serão afetados.', confirmarLabel: 'Desativar' }))) return
+    try { await excluirEmpresa(id); carregar() } catch (e) { avisar(e.message) }
   }
 
   return (

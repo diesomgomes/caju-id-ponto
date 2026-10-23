@@ -5,15 +5,19 @@ const ICONES = {
   relogio: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
   alerta:  <><path d="M12 3 2 20h20L12 3Z" /><path d="M12 10v5M12 18h.01" /></>,
   lixeira: <><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" /></>,
+  check:   <><circle cx="12" cy="12" r="9" /><path d="m8 12.5 3 3 5-6" /></>,
+  erro:    <><circle cx="12" cy="12" r="9" /><path d="m9 9 6 6M15 9l-6 6" /></>,
 }
 
 const TEMAS = {
   info:   { cor: '#059669', clara: '#ecfdf5', grad: 'linear-gradient(135deg,#34d399 0%,#059669 100%)', icone: 'relogio' },
   aviso:  { cor: '#d97706', clara: '#fffbeb', grad: 'linear-gradient(135deg,#fbbf24 0%,#d97706 100%)', icone: 'alerta' },
   perigo: { cor: '#dc2626', clara: '#fef2f2', grad: 'linear-gradient(135deg,#f87171 0%,#dc2626 100%)', icone: 'lixeira' },
+  sucesso: { cor: '#059669', clara: '#ecfdf5', grad: 'linear-gradient(135deg,#34d399 0%,#059669 100%)', icone: 'check' },
+  erro:   { cor: '#dc2626', clara: '#fef2f2', grad: 'linear-gradient(135deg,#f87171 0%,#dc2626 100%)', icone: 'erro' },
 }
 
-function Dialogo({ titulo, mensagem, itens = [], tipo = 'info', icone, confirmarLabel = 'Confirmar', cancelarLabel = 'Cancelar', concluir }) {
+function Dialogo({ titulo, mensagem, itens = [], tipo = 'info', icone, confirmarLabel = 'Confirmar', cancelarLabel = 'Cancelar', unico = false, concluir }) {
   const tema = TEMAS[tipo] || TEMAS.info
   const [saindo, setSaindo] = useState(false)
   const btnRef = useRef()
@@ -68,10 +72,12 @@ function Dialogo({ titulo, mensagem, itens = [], tipo = 'info', icone, confirmar
           )}
 
           <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
-            <button type="button" onClick={() => sair(false)} className="dlg-btn"
-              style={{ background: '#f4f4f5', color: '#52525b' }}>
-              {cancelarLabel}
-            </button>
+            {!unico && (
+              <button type="button" onClick={() => sair(false)} className="dlg-btn"
+                style={{ background: '#f4f4f5', color: '#52525b' }}>
+                {cancelarLabel}
+              </button>
+            )}
             <button type="button" ref={btnRef} onClick={() => sair(true)} className="dlg-btn dlg-btn-ok"
               style={{ background: tema.grad, color: '#fff', boxShadow: `0 6px 16px -4px ${tema.cor}99` }}>
               {confirmarLabel}
@@ -101,4 +107,20 @@ export function confirmar(opcoes) {
     }
     root.render(<Dialogo {...opcoes} concluir={concluir} />)
   })
+}
+
+/** Confirmação de exclusão (vermelha, com ícone de lixeira). */
+export const confirmarExclusao = opcoes =>
+  confirmar({ tipo: 'perigo', icone: 'lixeira', confirmarLabel: 'Excluir', ...opcoes })
+
+/**
+ * Substitui window.alert por um diálogo estilizado com um único botão.
+ * `avisar('texto')` mostra um erro; `avisar({ titulo, mensagem, tipo })` aceita
+ * os tipos 'erro' | 'sucesso' | 'aviso' | 'info'. Retorna Promise<void>.
+ */
+export function avisar(opcoes) {
+  const o = typeof opcoes === 'string' ? { mensagem: opcoes } : (opcoes || {})
+  const tipo = o.tipo || 'erro'
+  const tituloPadrao = { erro: 'Algo deu errado', sucesso: 'Tudo certo!', aviso: 'Atenção', info: 'Aviso' }[tipo] || 'Aviso'
+  return confirmar({ titulo: tituloPadrao, confirmarLabel: 'Entendi', ...o, tipo, unico: true }).then(() => {})
 }

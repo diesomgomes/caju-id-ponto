@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { confirmarExclusao, avisar } from '../components/ConfirmDialog'
 import { getModelosJornada, criarModeloJornada, atualizarModeloJornada, excluirModeloJornada, getEmpresas } from '../api'
 import Portal from '../components/Portal'
 import { IconEditar, IconExcluir } from '../components/IconBtn'
@@ -359,8 +360,8 @@ export default function ModelosJornada() {
   }
 
   async function excluir(id) {
-    if (!confirm('Desativar esta jornada? Colaboradores vinculados não serão afetados.')) return
-    try { await excluirModeloJornada(id); getModelosJornada().then(setLista) } catch (e) { alert(e.message) }
+    if (!(await confirmarExclusao({ titulo: 'Desativar jornada?', mensagem: 'Colaboradores vinculados não serão afetados.', confirmarLabel: 'Desativar' }))) return
+    try { await excluirModeloJornada(id); getModelosJornada().then(setLista) } catch (e) { avisar(e.message) }
   }
 
   const nomeEmpresa = id => empresas.find(e => e.id === id)?.nome || '—'

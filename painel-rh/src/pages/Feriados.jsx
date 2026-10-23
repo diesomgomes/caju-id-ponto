@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { confirmarExclusao, avisar } from '../components/ConfirmDialog'
 import { getFeriados, criarFeriado, excluirFeriado, sincronizarFeriados } from '../api'
 import { IconExcluir } from '../components/IconBtn'
 
@@ -32,9 +33,9 @@ export default function Feriados() {
     setSincronizando(true)
     try {
       const r = await sincronizarFeriados(ano)
-      alert(`${r.sincronizados} feriados nacionais sincronizados para ${ano}.`)
+      avisar({ tipo: 'sucesso', titulo: 'Feriados sincronizados!', mensagem: `${r.sincronizados} feriados nacionais sincronizados para ${ano}.` })
       carregar()
-    } catch (e) { alert(e.message) }
+    } catch (e) { avisar(e.message) }
     finally { setSincronizando(false) }
   }
 
@@ -50,9 +51,9 @@ export default function Feriados() {
   }
 
   async function excluir(id) {
-    if (!confirm('Remover este feriado?')) return
+    if (!(await confirmarExclusao({ titulo: 'Remover feriado?', mensagem: 'O feriado será removido do calendário.', confirmarLabel: 'Remover' }))) return
     try { await excluirFeriado(id); carregar() }
-    catch (e) { alert(e.message) }
+    catch (e) { avisar(e.message) }
   }
 
   const nacionais  = feriados.filter(f => f.tipo === 'nacional')

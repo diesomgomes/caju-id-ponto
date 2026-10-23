@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { avisar } from '../components/ConfirmDialog'
 import { getLoginConfig, salvarLoginConfig } from '../api'
 
 const DEFAULT = {
@@ -57,7 +58,7 @@ export default function AparenciaLogin() {
       set('imagem_url', url)
       set('tipo', 'imagem')
     } catch (e) {
-      alert('Erro no upload: ' + e.message)
+      avisar({ titulo: 'Erro no upload', mensagem: e.message })
     } finally {
       setUploadando(false)
     }
