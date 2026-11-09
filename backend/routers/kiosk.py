@@ -97,8 +97,25 @@ def kiosk_auth(token: str, body: dict):
 
 @router.post("/{token}/ponto")
 def kiosk_ponto(token: str, body: dict):
-    # Hora oficial do registro: capturada na chegada, antes das consultas ao banco
-    agora_utc = datetime.now(timezone.utc)
+    hora_servidor = datetime.now(timezone.utc)
+    agora_utc = hora_servidor
+
+    # Hora do registro: a que o tablet mostrava no momento da batida (quando enviada)
+    hora_tablet = body.get("registrado_em")
+    if hora_tablet:
+        try:
+            t = datetime.fromisoformat(str(hora_tablet).replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(400, "Horário do tablet inválido.")
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=timezone.utc)
+        t = t.astimezone(timezone.utc)
+        # Proteção contra relógio do tablet totalmente fora do ar (data errada)
+        if abs((t - hora_servidor).total_seconds()) > 86400:
+            raise HTTPException(400, "A data/hora do tablet está muito diferente da real. Ajuste o relógio do tablet.")
+        logger.info(f"kiosk_ponto: hora do tablet {t.isoformat()} (servidor {hora_servidor.isoformat()})")
+        agora_utc = t
+
     device = _get_device(token)
     empresa_id = device["empresa_id"]
 

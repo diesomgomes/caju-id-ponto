@@ -15,33 +15,14 @@ function fmtCpf(v) {
   return d.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2')
 }
 
-// Diferença (ms) entre o relógio do servidor e o do tablet
-let offsetServidor = 0
-
-// Faz algumas medições e usa a de menor latência (mais precisa)
-async function sincronizarRelogio() {
-  let melhor = null
-  for (let i = 0; i < 4; i++) {
-    try {
-      const t0 = Date.now()
-      const r = await fetch(`${API_URL}/kiosk/hora`, { cache: 'no-store', signal: AbortSignal.timeout(5000) })
-      if (!r.ok) continue
-      const { ms } = await r.json()
-      if (!Number.isFinite(ms)) continue
-      const rtt = Date.now() - t0
-      if (!melhor || rtt < melhor.rtt) melhor = { rtt, offset: ms + rtt / 2 - (t0 + rtt) }
-    } catch { /* tenta a próxima medição */ }
-  }
-  if (melhor) offsetServidor = melhor.offset
-}
-
+// Relógio com a hora local do tablet (a mesma da barra do Android)
 function Relogio({ className = '' }) {
-  const [agora, setAgora] = useState(() => new Date(Date.now() + offsetServidor))
+  const [agora, setAgora] = useState(() => new Date())
   useEffect(() => {
-    const id = setInterval(() => setAgora(new Date(Date.now() + offsetServidor)), 250)
+    const id = setInterval(() => setAgora(new Date()), 250)
     return () => clearInterval(id)
   }, [])
-  const hora = agora.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  const hora = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
   return <span className={`font-mono font-bold tabular-nums ${className}`}>{hora}</span>
 }
 
@@ -222,17 +203,10 @@ export default function Kiosk({ token, onResetar }) {
     return () => { clearInterval(idInfo); clearInterval(idBranding) }
   }, [pinOk, atualizarInfo, buscarBranding])
 
-  // ── Sincroniza o relógio com a hora do servidor ────────────────────────────
-  useEffect(() => {
-    sincronizarRelogio()
-    const id = setInterval(sincronizarRelogio, 300000)
-    return () => clearInterval(id)
-  }, [])
-
   // ── Detectar online/offline do dispositivo ─────────────────────────────────
   useEffect(() => {
     const goOffline = () => setOffline(true)
-    const goOnline  = () => { sincronizarRelogio(); if (pinOk) atualizarInfo(); else buscarBranding() }
+    const goOnline  = () => { if (pinOk) atualizarInfo(); else buscarBranding() }
     window.addEventListener('offline', goOffline)
     window.addEventListener('online', goOnline)
     return () => {
@@ -295,6 +269,7 @@ export default function Kiosk({ token, onResetar }) {
 
   async function capturarEEnviar(colab) {
     const c = colab || colaborador
+    const registradoEm = new Date().toISOString() // mesma hora que o relógio da tela marca agora
     const canvas = canvasRef.current; const video = videoRef.current
     if (!canvas || !video) return
     canvas.width = video.videoWidth || 640; canvas.height = video.videoHeight || 480
@@ -304,7 +279,7 @@ export default function Kiosk({ token, onResetar }) {
     try {
       const res = await fetch(`${API_URL}/kiosk/${token}/ponto`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ colaborador_id: c.id, foto }),
+        body: JSON.stringify({ colaborador_id: c.id, foto, registrado_em: registradoEm }),
         signal: AbortSignal.timeout(15000),
       })
       const data = await res.json()
